@@ -22,8 +22,9 @@ public final class ChartStyle {
 	/** Width of the data lines, in pixels */
 	static final float LINE_WIDTH = 2.0f;
 	static final float TITLE_SIZE = 15f;
-	static final float LABEL_SIZE = 12f;
-	static final float TICK_SIZE = 11f;
+	static final float LEGEND_SIZE = 12f;
+	static final float LABEL_SIZE = 15f;
+	static final float TICK_SIZE = 14f;
 
 	private ChartStyle() {
 	}
@@ -44,13 +45,14 @@ public final class ChartStyle {
 		Font titleFont = GUIUtil.createUIFont(GUIUtil.UI_FONT_STYLE_MEDIUM, TITLE_SIZE, 0f);
 		Font labelFont = GUIUtil.createUIFont(GUIUtil.UI_FONT_STYLE_REGULAR, LABEL_SIZE, 0f);
 		Font tickFont = GUIUtil.createUIFont(GUIUtil.UI_FONT_STYLE_REGULAR, TICK_SIZE, 0f);
+		Font legendFont = GUIUtil.createUIFont(GUIUtil.UI_FONT_STYLE_REGULAR, LEGEND_SIZE, 0f);
 
 		chart.setTitle((TextTitle) null);
 		chart.setBackgroundPaint(background);
 		boolean first = true;
 		for (Object subtitle : chart.getSubtitles()) {
 			if (subtitle instanceof LegendTitle legend) {
-				legend.setItemFont(labelFont);
+				legend.setItemFont(legendFont);
 				legend.setItemPaint(text);
 				legend.setBackgroundPaint(background);
 			} else if (subtitle instanceof TextTitle title && first) {
