@@ -8,6 +8,7 @@ import info.openrocket.core.preferences.ApplicationPreferences;
 import info.openrocket.core.simulation.FlightData;
 import info.openrocket.core.simulation.FlightDataBranch;
 import info.openrocket.core.simulation.FlightDataType;
+import info.openrocket.core.simulation.FlightEvent;
 import info.openrocket.core.startup.Application;
 import info.openrocket.core.unit.Unit;
 import info.openrocket.core.util.TextUtil;
@@ -61,15 +62,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The Plot / Export tab: several plots of one simulation on one page, ready to use. It starts with the most useful
- * plots; plots can be added, edited (data, axes, units, colors) and removed. All plots can be exported at once, as
- * one image or as the data in one CSV file.
+ * The Plot / Export tab: several plots of one simulation on one page, ready to use. It starts with the eight most
+ * useful plots, each with one unit on its vertical axis; plots can be added, edited (data, axes, units, colors)
+ * and removed. All plots can be exported at once, as one image or as the data in one CSV file.
  */
 public class PlotExportPanel extends JPanel {
 	private static final Translator trans = Application.getTranslator();
 
-	/** The presets that are shown at first: vertical motion, total motion, stability and flight side profile */
-	private static final int[] DEFAULT_PRESETS = {0, 1, 4, 2};
 	static final int COLUMNS = 2;
 	private static final int CHART_HEIGHT = 360;
 	/** Size of one plot in the exported image, before it is drawn at twice the resolution */
@@ -78,8 +77,7 @@ public class PlotExportPanel extends JPanel {
 	static final int EXPORT_SCALE = 2;
 
 	private final OpenRocketDocument document;
-	private final List<SimulationPlotConfiguration> plots = new ArrayList<>();
-	private final List<JFreeChart> charts = new ArrayList<>();
+	private final List<SimulationPlotConfiguration> plots = new ArrayList<>(mainPlots());
 
 	private final JComboBox<Simulation> simulationSelector = new JComboBox<>();
 	private final JButton addButton;
@@ -87,14 +85,12 @@ public class PlotExportPanel extends JPanel {
 	private final JButton exportDataButton;
 	private final JPanel content = new JPanel(new BorderLayout());
 	private final JPanel chartGrid = new JPanel(new GridLayout(0, COLUMNS, 8, 8));
+	private final JScrollPane scroll = new JScrollPane(content);
 	private int updating = 0;
 
 	public PlotExportPanel(OpenRocketDocument document) {
 		super(new MigLayout("fill, ins n", "", "[][grow]"));
 		this.document = document;
-		for (int preset : DEFAULT_PRESETS) {
-			plots.add(SimulationPlotConfiguration.DEFAULT_CONFIGURATIONS[preset].clone().resetUnits());
-		}
 
 		add(new JLabel(trans.get("PlotExportPanel.lbl.Simulation")), "split, gapright rel");
 		simulationSelector.setRenderer(new DefaultListCellRenderer() {
@@ -127,8 +123,8 @@ public class PlotExportPanel extends JPanel {
 		exportDataButton.addActionListener(e -> export(FileHelper.CSV_FILTER, "csv"));
 		add(exportDataButton, "wrap");
 
-		JScrollPane scroll = new JScrollPane(content);
 		scroll.setBorder(null);
+
 		scroll.getVerticalScrollBar().setUnitIncrement(16);
 		add(scroll, "grow");
 
@@ -179,6 +175,39 @@ public class PlotExportPanel extends JPanel {
 		updateCharts();
 	}
 
+	/**
+	 * @return the eight plots that are shown at first. Each plot has only quantities with the same unit, all on the
+	 * left axis, so they can be compared directly.
+	 */
+	static List<SimulationPlotConfiguration> mainPlots() {
+		List<SimulationPlotConfiguration> plots = new ArrayList<>();
+		plots.add(plot("Altitude", FlightDataType.TYPE_TIME, FlightDataType.TYPE_ALTITUDE));
+		plots.add(plot("Velocity", FlightDataType.TYPE_TIME, FlightDataType.TYPE_VELOCITY_Z,
+				FlightDataType.TYPE_VELOCITY_TOTAL));
+		plots.add(plot("Acceleration", FlightDataType.TYPE_TIME, FlightDataType.TYPE_ACCELERATION_Z,
+				FlightDataType.TYPE_ACCELERATION_TOTAL));
+		plots.add(plot("Stability", FlightDataType.TYPE_TIME, FlightDataType.TYPE_STABILITY));
+		plots.add(plot("Forces", FlightDataType.TYPE_TIME, FlightDataType.TYPE_THRUST_FORCE,
+				FlightDataType.TYPE_DRAG_FORCE));
+		plots.add(plot("DragCoefficient", FlightDataType.TYPE_TIME, FlightDataType.TYPE_DRAG_COEFF));
+		plots.add(plot("Mach", FlightDataType.TYPE_TIME, FlightDataType.TYPE_MACH_NUMBER));
+		plots.add(plot("FlightPath", FlightDataType.TYPE_POSITION_X, FlightDataType.TYPE_ALTITUDE));
+		return plots;
+	}
+
+	private static SimulationPlotConfiguration plot(String key, FlightDataType domain, FlightDataType... types) {
+		SimulationPlotConfiguration plot = new SimulationPlotConfiguration(trans.get("PlotExportPanel.plot." + key),
+				domain);
+		for (FlightDataType type : types) {
+			plot.addPlotDataType(type, 0);
+		}
+		// The same flight events as the preset plots
+		for (FlightEvent.Type event : SimulationPlotConfiguration.DEFAULT_CONFIGURATIONS[0].getActiveEvents()) {
+			plot.setEvent(event, true);
+		}
+		return plot.resetUnits();
+	}
+
 	private static boolean hasData(Simulation simulation) {
 		FlightData data = simulation.getSimulatedData();
 		return data != null && data.getBranchCount() > 0;
@@ -192,7 +221,6 @@ public class PlotExportPanel extends JPanel {
 
 		content.removeAll();
 		chartGrid.removeAll();
-		charts.clear();
 		if (simulation == null) {
 			content.add(new JLabel(trans.get("PlotExportPanel.lbl.NoData"), SwingConstants.CENTER), BorderLayout.CENTER);
 		} else {
@@ -205,12 +233,14 @@ public class PlotExportPanel extends JPanel {
 		content.repaint();
 	}
 
-	private JPanel createCard(Simulation simulation, int index) {
-		JFreeChart chart = SimulationPlot.create(simulation, plots.get(index), false).getJFreeChart();
+	private static JFreeChart createChart(Simulation simulation, SimulationPlotConfiguration configuration) {
+		JFreeChart chart = SimulationPlot.create(simulation, configuration, false).getJFreeChart();
 		ChartStyle.apply(chart);
-		charts.add(chart);
+		return chart;
+	}
 
-		SimulationChart chartPanel = new SimulationChart(chart);
+	private JPanel createCard(Simulation simulation, int index) {
+		SimulationChart chartPanel = new SimulationChart(createChart(simulation, plots.get(index)));
 		chartPanel.setPreferredSize(new Dimension(400, CHART_HEIGHT));
 
 		JButton edit = toolButton(Icons.EDIT_EDIT, trans.get("PlotExportPanel.but.Edit.ttip"));
@@ -238,6 +268,12 @@ public class PlotExportPanel extends JPanel {
 
 	private void showAddMenu() {
 		JPopupMenu menu = new JPopupMenu();
+		for (SimulationPlotConfiguration plot : mainPlots()) {
+			JMenuItem item = new JMenuItem(plot.getName());
+			item.addActionListener(e -> addPlot(plot));
+			menu.add(item);
+		}
+		menu.addSeparator();
 		for (SimulationPlotConfiguration preset : SimulationPlotConfiguration.DEFAULT_CONFIGURATIONS) {
 			JMenuItem item = new JMenuItem(preset.getName());
 			item.addActionListener(e -> addPlot(preset.clone().resetUnits()));
@@ -311,6 +347,10 @@ public class PlotExportPanel extends JPanel {
 	 * so that the text is sharp
 	 */
 	BufferedImage renderImage() {
+		List<JFreeChart> charts = new ArrayList<>();
+		for (SimulationPlotConfiguration plot : plots) {
+			charts.add(createChart(getSimulation(), plot));
+		}
 		int columns = Math.min(COLUMNS, charts.size());
 		int rows = (charts.size() + COLUMNS - 1) / COLUMNS;
 		BufferedImage image = new BufferedImage(columns * EXPORT_CHART_WIDTH * EXPORT_SCALE,

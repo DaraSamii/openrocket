@@ -80,14 +80,27 @@ class PlotExportPanelTest {
 	}
 
 	@Test
-	void startsWithTheMostUsefulPlotsOfTheFirstSimulation() throws Exception {
+	void startsWithTheEightMainPlotsOfTheFirstSimulation() {
 		OpenRocketDocument document = createDocument();
 		PlotExportPanel panel = new PlotExportPanel(document);
 
 		assertEquals(document.getSimulations().get(0), panel.getSimulation());
 		List<String> names = panel.getPlots().stream().map(SimulationPlotConfiguration::getName).toList();
-		assertEquals(List.of(PRESETS[0].getName(), PRESETS[1].getName(), PRESETS[4].getName(), PRESETS[2].getName()),
-				names);
+		assertEquals(PlotExportPanel.mainPlots().stream().map(SimulationPlotConfiguration::getName).toList(), names);
+		assertEquals(8, names.size());
+	}
+
+	/**
+	 * Every main plot shows only quantities with the same unit, on one axis.
+	 */
+	@Test
+	void mainPlotsHaveOneUnitOnOneAxis() {
+		for (SimulationPlotConfiguration plot : PlotExportPanel.mainPlots()) {
+			for (int i = 0; i < plot.getDataCount(); i++) {
+				assertEquals(plot.getType(0).getUnitGroup(), plot.getType(i).getUnitGroup(), plot.getName());
+				assertEquals(0, plot.getAxis(i), plot.getName());
+			}
+		}
 	}
 
 	@Test
@@ -102,16 +115,17 @@ class PlotExportPanelTest {
 		PlotExportPanel panel = new PlotExportPanel(createDocument());
 
 		panel.addPlot(PRESETS[7].clone());
-		assertEquals(5, panel.getPlots().size());
-		assertEquals(PRESETS[7].getName(), panel.getPlots().get(4).getName());
+		assertEquals(9, panel.getPlots().size());
+		assertEquals(PRESETS[7].getName(), panel.getPlots().get(8).getName());
 
+		String second = panel.getPlots().get(1).getName();
 		panel.removePlot(0);
-		assertEquals(4, panel.getPlots().size());
-		assertEquals(PRESETS[1].getName(), panel.getPlots().get(0).getName());
+		assertEquals(8, panel.getPlots().size());
+		assertEquals(second, panel.getPlots().get(0).getName());
 	}
 
 	/**
-	 * Four plots are two rows of two, each plot 600 x 400 drawn at twice the resolution.
+	 * Eight plots are four rows of two, each plot 600 x 400 drawn at twice the resolution.
 	 */
 	@Test
 	void exportedImageHasAllPlotsAtTwiceTheResolution() throws Exception {
@@ -119,11 +133,11 @@ class PlotExportPanelTest {
 
 		BufferedImage image = panel.renderImage();
 		assertEquals(2 * 600 * 2, image.getWidth());
-		assertEquals(2 * 400 * 2, image.getHeight());
+		assertEquals(4 * 400 * 2, image.getHeight());
 		assertTrue(countColors(image) > 50, "The image must contain the drawn plots");
 
 		panel.addPlot(PRESETS[2].clone());
-		assertEquals(3 * 400 * 2, panel.renderImage().getHeight());
+		assertEquals(5 * 400 * 2, panel.renderImage().getHeight());
 	}
 
 	@Test
@@ -136,7 +150,8 @@ class PlotExportPanelTest {
 		List<String> lines = Files.readAllLines(file.toPath());
 		String text = String.join("\n", lines);
 		for (FlightDataType type : new FlightDataType[]{FlightDataType.TYPE_TIME, FlightDataType.TYPE_ALTITUDE,
-				FlightDataType.TYPE_VELOCITY_Z, FlightDataType.TYPE_STABILITY, FlightDataType.TYPE_POSITION_X}) {
+				FlightDataType.TYPE_VELOCITY_Z, FlightDataType.TYPE_STABILITY, FlightDataType.TYPE_THRUST_FORCE,
+				FlightDataType.TYPE_DRAG_COEFF, FlightDataType.TYPE_MACH_NUMBER, FlightDataType.TYPE_POSITION_X}) {
 			assertTrue(text.contains(type.getName()), "Missing column " + type.getName());
 		}
 		long dataLines = lines.stream().filter(line -> !line.startsWith("#") && !line.isBlank()).count();
