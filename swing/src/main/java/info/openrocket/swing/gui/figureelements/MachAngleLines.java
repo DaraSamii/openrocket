@@ -17,8 +17,8 @@ import java.util.List;
 
 /**
  * Dotted lines at the Mach angle, asin(1 / Mach), in the side view of the rocket: the Mach cone from the nose tip, and
- * a Mach line outwards from the tip of every fin (the first point of the fin outside the body). Nothing is drawn
- * below Mach 1. The lines run to a little behind the end of the rocket.
+ * a Mach line outwards from the front of the root of every fin, where its leading edge meets the body. Nothing is
+ * drawn below Mach 1. The lines run to a little behind the end of the rocket.
  */
 public class MachAngleLines implements FigureElement {
 	/** The lines run this part of the rocket length behind the end of the rocket. */
@@ -58,22 +58,20 @@ public class MachAngleLines implements FigureElement {
 		lines.add(new double[]{noseX, 0, endX, slope * (endX - noseX)});
 		lines.add(new double[]{noseX, 0, endX, -slope * (endX - noseX)});
 
-		// A Mach line outwards from the tip of every fin
+		// A Mach line outwards from the front of the root of every fin
 		for (RocketComponent component : configuration.getAllActiveComponents()) {
 			if (!(component instanceof FinSet finSet) || !finSet.isVisible()) {
 				continue;
 			}
-			CoordinateIF tip = firstPointOutsideBody(finSet);
-			if (tip == null) {
-				continue;
-			}
+			// The first fin point is the front of the root, relative to the fin front on the body
+			CoordinateIF rootFront = finSet.getFinPoints()[0];
 			CoordinateIF[] roots = finSet.getComponentLocations();
 			double[] angles = finSet.getInstanceAngles();
 			for (int i = 0; i < roots.length; i++) {
 				double finAngle = angles[i % angles.length];
-				double x = roots[i].getX() + tip.getX();
-				double y = roots[i].getY() + tip.getY() * Math.cos(finAngle);
-				double z = roots[i].getZ() + tip.getY() * Math.sin(finAngle);
+				double x = roots[i].getX() + rootFront.getX();
+				double y = roots[i].getY() + rootFront.getY() * Math.cos(finAngle);
+				double z = roots[i].getZ() + rootFront.getY() * Math.sin(finAngle);
 				// Map the 3D point into the view, like the CG and CP
 				double viewY = y * Math.cos(rotation) + z * Math.sin(rotation);
 				if (Math.abs(viewY) < 1e-9) {
@@ -90,18 +88,6 @@ public class MachAngleLines implements FigureElement {
 	 */
 	public List<double[]> getLines() {
 		return lines;
-	}
-
-	/**
-	 * @return the first point of the fin that is not on the root, relative to the fin front, or null
-	 */
-	static CoordinateIF firstPointOutsideBody(FinSet finSet) {
-		for (CoordinateIF point : finSet.getFinPoints()) {
-			if (point.getY() > 1e-6) {
-				return point;
-			}
-		}
-		return null;
 	}
 
 	@Override

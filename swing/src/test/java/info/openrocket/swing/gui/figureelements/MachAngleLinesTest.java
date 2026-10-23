@@ -19,7 +19,7 @@ class MachAngleLinesTest extends BaseTestCase {
 
 	/**
 	 * Nose cone 100 mm, body tube 300 mm with radius 25 mm, and four fins at the end of the body tube: root 100 mm,
-	 * sweep 30 mm, height 60 mm. The fin tips are 30 mm behind the fin front, 85 mm from the axis.
+	 * sweep 30 mm, height 60 mm. The front of the fin roots is 300 mm from the nose tip, 25 mm from the axis.
 	 */
 	private static FlightConfiguration createRocket() {
 		Rocket rocket = new Rocket();
@@ -66,11 +66,11 @@ class MachAngleLinesTest extends BaseTestCase {
 	}
 
 	/**
-	 * At Mach 2 the lines are at 30 degrees: a cone from the nose tip, and a line outwards from the tip of the upper
-	 * and the lower fin. The fins at 90 and 270 degrees point at the viewer and have no line.
+	 * At Mach 2 the lines are at 30 degrees: a cone from the nose tip, and a line outwards from the root front of the
+	 * upper and the lower fin. The fins at 90 and 270 degrees point at the viewer and have no line.
 	 */
 	@Test
-	void linesStartAtTheNoseTipAndTheFinTipsAtTheMachAngle() {
+	void linesStartAtTheNoseTipAndTheFinRootsAtTheMachAngle() {
 		MachAngleLines lines = new MachAngleLines();
 		lines.update(createRocket(), 2, 0);
 
@@ -82,21 +82,21 @@ class MachAngleLinesTest extends BaseTestCase {
 		assertLine(all.get(0), 0, 0, slope);
 		assertLine(all.get(1), 0, 0, -slope);
 
-		// Fin tips: fin front at 0.1 + 0.3 - 0.1 = 0.3 m, tip 0.03 m behind it, 0.025 + 0.06 m from the axis
-		assertLine(all.get(2), 0.33, 0.085, slope);
-		assertLine(all.get(3), 0.33, -0.085, -slope);
+		// Fin roots: fin front at 0.1 + 0.3 - 0.1 = 0.3 m, on the body at 0.025 m from the axis
+		assertLine(all.get(2), 0.3, 0.025, slope);
+		assertLine(all.get(3), 0.3, -0.025, -slope);
 	}
 
 	@Test
 	void rotatingTheViewMovesTheFinLines() {
 		MachAngleLines lines = new MachAngleLines();
-		// Rotated by 45 degrees, all four fin tips are seen at 0.085 * cos(45 degrees) from the axis
+		// Rotated by 45 degrees, all four fin roots are seen at 0.025 * cos(45 degrees) from the axis
 		lines.update(createRocket(), 2, Math.toRadians(45));
 
 		List<double[]> all = lines.getLines();
 		assertEquals(6, all.size());
 		for (double[] line : all.subList(2, 6)) {
-			assertEquals(0.085 * Math.cos(Math.toRadians(45)), Math.abs(line[1]), EPSILON);
+			assertEquals(0.025 * Math.cos(Math.toRadians(45)), Math.abs(line[1]), EPSILON);
 		}
 	}
 
