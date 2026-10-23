@@ -80,6 +80,7 @@ public final class LandingDispersionDialog extends JDialog {
 	private final CardLayout buttonCardLayout;
 	private final JProgressBar progressBar;
 	private final JLabel progressLabel;
+	private final MonteCarloProgressDetails progressDetails = new MonteCarloProgressDetails();
 	private final JButton runButton;
 	private final JButton plotCachedButton;
 	private final JButton closeButton;
@@ -269,7 +270,8 @@ public final class LandingDispersionDialog extends JDialog {
 		center.add(heading, "wrap para");
 		progressBar.setStringPainted(true);
 		center.add(progressBar, "growx, w 500::, wrap rel");
-		center.add(progressLabel, "growx");
+		center.add(progressLabel, "growx, wrap para");
+		center.add(progressDetails, "growx");
 		panel.add(center, "growx");
 		return panel;
 	}
@@ -359,6 +361,7 @@ public final class LandingDispersionDialog extends JDialog {
 		progressBar.setValue(0);
 		progressLabel.setText(String.format(trans.get("LandingDispersionDlg.lbl.progress"), 0,
 				settings.getRunCount() + 1));
+		progressDetails.start(settings.getThreadCount(), settings.getRunCount() + 1);
 		cardLayout.show(cards, CARD_PROGRESS);
 		buttonCardLayout.show(buttonCards, CARD_PROGRESS);
 		runButton.setVisible(false);
@@ -619,10 +622,12 @@ public final class LandingDispersionDialog extends JDialog {
 			progressBar.setValue(getProgress());
 			progressLabel.setText(String.format(trans.get("LandingDispersionDlg.lbl.progress"),
 					latest.completed, latest.total));
+			progressDetails.setProgress(latest.completed, latest.total);
 		}
 
 		@Override
 		protected void done() {
+			progressDetails.stop();
 			if (isCancelled()) {
 				worker = null;
 				dispose();
