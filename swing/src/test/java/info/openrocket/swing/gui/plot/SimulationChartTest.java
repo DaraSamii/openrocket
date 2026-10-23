@@ -7,19 +7,28 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.event.InputEvent;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
+import org.jfree.chart.ChartFactory;
 import org.jfree.chart.LegendItemCollection;
+import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.LegendTitle;
 import org.jfree.data.xy.XYDataset;
+import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.junit.jupiter.api.Test;
+
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 
 import info.openrocket.core.componentanalysis.CADataBranch;
 import info.openrocket.core.componentanalysis.CADataType;
@@ -42,6 +51,39 @@ import info.openrocket.swing.util.BaseTestCase;
  * Tests interactions with data series in simulation and component-analysis charts.
  */
 public class SimulationChartTest extends BaseTestCase {
+
+	/**
+	 * In a scrolled page of plots the wheel scrolls the page, and zooms only with Ctrl.
+	 */
+	@Test
+	public void wheelGoesToTheScrollPaneUnlessCtrlIsPressed() {
+		XYSeries series = new XYSeries("Altitude");
+		series.add(0, 0);
+		series.add(1, 10);
+		SimulationChart chart = new SimulationChart(ChartFactory.createXYLineChart("", "Time", "Altitude",
+				new XYSeriesCollection(series), PlotOrientation.VERTICAL, false, false, false));
+		chart.setWheelZoomNeedsControl(true);
+		JPanel page = new JPanel();
+		page.add(chart);
+		JScrollPane scrollPane = new JScrollPane(page);
+		List<MouseWheelEvent> scrolled = new ArrayList<>();
+		scrollPane.addMouseWheelListener(scrolled::add);
+
+		wheel(chart, 0);
+		assertEquals(1, scrolled.size());
+		assertEquals(scrollPane, scrolled.get(0).getComponent());
+
+		wheel(chart, InputEvent.CTRL_DOWN_MASK);
+		assertEquals(1, scrolled.size(), "Ctrl+wheel zooms the plot instead of scrolling");
+	}
+
+	private static void wheel(SimulationChart chart, int modifiers) {
+		MouseWheelEvent event = new MouseWheelEvent(chart, MouseWheelEvent.MOUSE_WHEEL, 0, modifiers, 10, 10, 0,
+				false, MouseWheelEvent.WHEEL_UNIT_SCROLL, 3, 1);
+		for (MouseWheelListener listener : chart.getMouseWheelListeners()) {
+			listener.mouseWheelMoved(event);
+		}
+	}
 
 	/**
 	 * Highlighting one component-analysis legend item must only widen that component's series.

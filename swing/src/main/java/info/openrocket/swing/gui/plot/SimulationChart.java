@@ -1,5 +1,6 @@
 package info.openrocket.swing.gui.plot;
 
+import java.awt.Container;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Graphics;
@@ -20,6 +21,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import javax.swing.JScrollPane;
+import javax.swing.SwingUtilities;
 import javax.swing.BorderFactory;
 
 import org.jfree.chart.ChartPanel;
@@ -62,6 +65,7 @@ public class SimulationChart extends ChartPanel {
 	private Interaction interaction = null;
 	
 	private MouseWheelHandler mouseWheelHandler = null;
+	private boolean wheelZoomNeedsControl = false;
 
     private Comparable<?> hoveredLegendKey = null;
 
@@ -82,6 +86,16 @@ public class SimulationChart extends ChartPanel {
 		this.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
 	}
 	
+	/**
+	 * In a scrolled page of plots, the mouse wheel should scroll the page. With this set, the wheel zooms only while
+	 * Ctrl is pressed, and otherwise goes to the scroll pane around the chart.
+	 *
+	 * @param needsControl whether zooming with the mouse wheel needs Ctrl
+	 */
+	public void setWheelZoomNeedsControl(boolean needsControl) {
+		this.wheelZoomNeedsControl = needsControl;
+	}
+
 	@Override
 	public boolean isMouseWheelEnabled() {
 		return mouseWheelHandler != null;
@@ -366,6 +380,14 @@ public class SimulationChart extends ChartPanel {
 		 * @param e  the event.
 		 */
 		public void mouseWheelMoved(MouseWheelEvent e) {
+			if (wheelZoomNeedsControl && !e.isControlDown()) {
+				Container scrollPane = (Container) SwingUtilities.getAncestorOfClass(JScrollPane.class,
+						SimulationChart.this);
+				if (scrollPane != null) {
+					scrollPane.dispatchEvent(SwingUtilities.convertMouseEvent(SimulationChart.this, e, scrollPane));
+				}
+				return;
+			}
 			JFreeChart chart = SimulationChart.this.getChart();
 			if (chart == null) {
 				return;

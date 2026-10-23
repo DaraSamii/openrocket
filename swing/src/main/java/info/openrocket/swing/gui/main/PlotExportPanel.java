@@ -266,6 +266,7 @@ public class PlotExportPanel extends JPanel {
 
 	private JPanel createCard(Simulation simulation, int index) {
 		SimulationChart chartPanel = new SimulationChart(createChart(simulation, plots.get(index)));
+		chartPanel.setWheelZoomNeedsControl(true);
 		chartPanel.setPreferredSize(new Dimension(400, CHART_HEIGHT));
 
 		boolean isMaximized = maximized == index;

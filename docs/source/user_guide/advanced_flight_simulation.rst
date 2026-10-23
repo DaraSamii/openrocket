@@ -42,7 +42,8 @@ plots; drag the divider to give the plots more room.
 - :guilabel:`Export data` saves the data of all plots (the time and every plotted value) in one CSV file, with the CSV
   settings that you used last time in `Exporting Data`_.
 
-You can zoom in on a plot with the mouse wheel, and move it by dragging.
+The mouse wheel scrolls through the plots, also over a plot. Hold :kbd:`Ctrl` and use the mouse wheel to zoom in
+on a plot, and move it by dragging.
 
 Plotting your rocket's flight
 =============================
