@@ -38,6 +38,8 @@ import info.openrocket.core.util.MathUtil;
  * Bodies that deploy a recovery device and independently simulated bodies created by
  * stage separation are included in the landing view when they reach the ground. Scalar
  * flight metrics remain available for every flight-data branch.
+ * <p>
+ * A {@link RecoveryScenario} flies the same samples with the recovery of one stage changed.
  */
 public final class MonteCarloSimulationRunner {
 	private static final MonteCarloProgressListener NO_PROGRESS = (completed, total) -> {
@@ -57,6 +59,20 @@ public final class MonteCarloSimulationRunner {
 	 */
 	public MonteCarloResult run(Simulation simulation, MonteCarloSettings settings,
 			MonteCarloProgressListener progressListener) {
+		return run(simulation, settings, null, progressListener);
+	}
+
+	/**
+	 * Run a complete analysis with the recovery of one stage changed.
+	 *
+	 * @param simulation simulation to disperse; neither it nor its rocket is modified
+	 * @param settings analysis configuration
+	 * @param scenario recovery scenario to fly, or null for the designed recovery
+	 * @param progressListener receives monotonic progress updates on the calling thread
+	 * @return the completed analysis
+	 */
+	public MonteCarloResult run(Simulation simulation, MonteCarloSettings settings, RecoveryScenario scenario,
+			MonteCarloProgressListener progressListener) {
 		Objects.requireNonNull(simulation, "simulation");
 		Objects.requireNonNull(settings, "settings");
 		Objects.requireNonNull(progressListener, "progressListener");
@@ -65,7 +81,7 @@ public final class MonteCarloSimulationRunner {
 		long start = System.currentTimeMillis();
 		int totalTrajectories = settings.getRunCount() + 1;
 
-		MonteCarloRunResult nominal = runTrajectory(simulation, MonteCarloSample.nominal(settings.getSeed()));
+		MonteCarloRunResult nominal = runTrajectory(simulation, MonteCarloSample.nominal(settings.getSeed()), scenario);
 		progressListener.onProgress(1, totalTrajectories);
 
 		// Sampling before submission makes it independent of worker scheduling.
@@ -75,20 +91,20 @@ public final class MonteCarloSimulationRunner {
 			samples.add(sampler.nextSample(runNumber));
 		}
 
-		List<MonteCarloRunResult> results = simulateAll(simulation, samples, settings.getThreadCount(),
+		List<MonteCarloRunResult> results = simulateAll(simulation, samples, scenario, settings.getThreadCount(),
 				progressListener, totalTrajectories);
 		return new MonteCarloResult(settings, nominal, results, System.currentTimeMillis() - start);
 	}
 
 	private List<MonteCarloRunResult> simulateAll(Simulation source, List<MonteCarloSample> samples,
-			int threadCount, MonteCarloProgressListener progressListener, int totalTrajectories) {
+			RecoveryScenario scenario, int threadCount, MonteCarloProgressListener progressListener, int totalTrajectories) {
 		ExecutorService executor = Executors.newFixedThreadPool(Math.min(threadCount, samples.size()),
 				workerThreadFactory());
 		ExecutorCompletionService<MonteCarloRunResult> completionService =
 				new ExecutorCompletionService<>(executor);
 		try {
 			for (MonteCarloSample sample : samples) {
-				completionService.submit(() -> runTrajectory(source, sample));
+				completionService.submit(() -> runTrajectory(source, sample, scenario));
 			}
 
 			// Collect in completion order for accurate progress, then restore run order.
@@ -152,12 +168,16 @@ public final class MonteCarloSimulationRunner {
 	 *
 	 * @param source simulation to disperse
 	 * @param sample sampled deviations to apply
+	 * @param scenario recovery scenario to fly, or null for the designed recovery
 	 * @return the trajectory outcome
 	 */
-	private MonteCarloRunResult runTrajectory(Simulation source, MonteCarloSample sample) {
+	private MonteCarloRunResult runTrajectory(Simulation source, MonteCarloSample sample, RecoveryScenario scenario) {
 		checkCancellation();
 
 		Simulation simulation = source.duplicateForIndependentSimulation();
+		if (scenario != null) {
+			scenario.applyTo(simulation.getRocket(), simulation.getFlightConfigurationId());
+		}
 		SimulationOptions options = simulation.getOptions();
 		applySampledOptions(options, sample);
 
@@ -176,7 +196,9 @@ public final class MonteCarloSimulationRunner {
 		}
 
 		FlightData data = simulation.getSimulatedData();
-		List<LandingPoint> landingPoints = extractLandingPoints(data);
+		String ballisticBodyId = scenario != null && scenario.kind() == RecoveryScenario.Kind.BALLISTIC
+				? scenario.stageId() : null;
+		List<LandingPoint> landingPoints = extractLandingPoints(data, ballisticBodyId);
 		List<LandingBodyFailure> bodyFailures = extractBodyFailures(data);
 		List<MonteCarloBranchResult> branchResults = extractBranchResults(data);
 		double maximumAltitude = data != null ? data.getMaxAltitude() : Double.NaN;
@@ -234,6 +256,13 @@ public final class MonteCarloSimulationRunner {
 	}
 
 	static List<LandingPoint> extractLandingPoints(FlightData data) {
+		return extractLandingPoints(data, null);
+	}
+
+	/**
+	 * @param ballisticBodyId body that flies without recovery on purpose, so it lands without deploying, or null
+	 */
+	static List<LandingPoint> extractLandingPoints(FlightData data, String ballisticBodyId) {
 		List<LandingPoint> points = new ArrayList<>();
 		if (data == null) {
 			return points;
@@ -246,7 +275,8 @@ public final class MonteCarloSimulationRunner {
 			}
 			// A separated stage is an independent landing body even if it tumbles instead
 			// of deploying recovery. Keep the recovery requirement for the primary branch.
-			if (!descendsUnderRecoveryDevice(branch) && !isSeparatedBody(branch)) {
+			if (!descendsUnderRecoveryDevice(branch) && !isSeparatedBody(branch)
+					&& !bodyId(branch, branchIndex).equals(ballisticBodyId)) {
 				continue;
 			}
 

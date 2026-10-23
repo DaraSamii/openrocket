@@ -1,9 +1,12 @@
 package info.openrocket.core.simulation.montecarlo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -115,5 +118,43 @@ public class RecoveryScenarioTest extends BaseTestCase {
 				assertEquals(0, deployment.getDeployDelay(), parachute.getName());
 			}
 		}
+	}
+
+	/**
+	 * Without dispersion, the descent times must follow the drag area under which the rocket falls: the designed
+	 * drogue-then-main descent is slower than the drogue alone or the main only near the ground, faster than the
+	 * main from apogee, and every recovery is slower than none.
+	 */
+	@Test
+	public void testScenariosChangeTheDescentAsTheirRecoveryImplies() {
+		Simulation source = dualDeployment();
+		AxialStage stage = stage(source);
+		String stageId = stage.getID().toString();
+		MonteCarloSettings settings = MonteCarloSettings.builder().runCount(2).seed(97531).threadCount(1).build();
+		MonteCarloSimulationRunner runner = new MonteCarloSimulationRunner();
+
+		MonteCarloResult designed = runner.run(source, settings);
+		Map<Kind, MonteCarloResult> results = new EnumMap<>(Kind.class);
+		for (RecoveryScenario scenario : RecoveryScenario.available(source.getRocket(), TestRockets.TEST_FCID_0)) {
+			results.put(scenario.kind(), runner.run(source, settings, scenario, (completed, total) -> {
+			}));
+		}
+
+		double designedTime = designed.getNominalResult().flightTime();
+		double ballisticTime = results.get(Kind.BALLISTIC).getNominalResult().flightTime();
+		assertTrue(designedTime < results.get(Kind.MAIN_AT_APOGEE).getNominalResult().flightTime());
+		assertTrue(designedTime > results.get(Kind.DROGUE_ONLY).getNominalResult().flightTime());
+		assertTrue(designedTime > results.get(Kind.MAIN_ONLY).getNominalResult().flightTime());
+		for (Kind kind : List.of(Kind.DROGUE_ONLY, Kind.MAIN_ONLY, Kind.MAIN_AT_APOGEE)) {
+			assertTrue(ballisticTime < results.get(kind).getNominalResult().flightTime(), kind.name());
+		}
+
+		// The ballistic rocket lands without a recovery device and still has a landing point
+		assertNotNull(results.get(Kind.BALLISTIC).getNominalResult().getLandingPoint(stageId));
+		assertEquals(2, results.get(Kind.BALLISTIC).getLandingPoints(stageId).size());
+		// The source rocket keeps its designed recovery
+		assertEquals(List.of(Kind.BALLISTIC, Kind.DROGUE_ONLY, Kind.MAIN_ONLY, Kind.MAIN_AT_APOGEE),
+				RecoveryScenario.available(source.getRocket(), TestRockets.TEST_FCID_0).stream()
+						.map(RecoveryScenario::kind).toList());
 	}
 }
