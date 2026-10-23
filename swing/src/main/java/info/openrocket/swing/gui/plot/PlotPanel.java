@@ -288,6 +288,23 @@ public class PlotPanel<T extends DataType & Groupable<G>,
 		}
 	}
 
+	/**
+	 * Shows a copy of the given configuration in the panel, to edit it. The preset with the same name is selected
+	 * in the preset list, or "Custom" if there is none.
+	 */
+	public void setPlotConfiguration(C conf) {
+		modifying++;
+		setConfiguration(conf);
+		configurationSelector.setSelectedItem(customConfiguration);
+		for (C preset : presetArray) {
+			if (preset.getName().equals(conf.getName())) {
+				configurationSelector.setSelectedItem(preset);
+			}
+		}
+		updatePlots();
+		modifying--;
+	}
+
 	protected void setDefaultConfiguration(C newConfiguration) {
 		defaultConfiguration = newConfiguration;
 	}
