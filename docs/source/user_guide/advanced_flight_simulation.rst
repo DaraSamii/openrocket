@@ -159,6 +159,16 @@ simulation *passes or fails*, when it's evaluated for minimum speed off the rod.
    :figclass: or-image-border
    :alt: The Edit simulation window: Launch conditions.
 
+With the multi-level wind model, :guilabel:`Edit levels` opens the wind profile editor. Besides adding levels by
+hand or importing them from a CSV file, you can download the wind forecast of a weather model with
+:guilabel:`Download levels`. Choose the weather model (NOAA GFS, ECMWF IFS, DWD ICON, GEM, Météo-France, JMA, or the
+best match for the location), the latitude and longitude of the launch site (taken from the launch conditions), and the
+launch date and time in local time at the launch site. Days from 2022 to about two weeks ahead are available: future
+days are forecasts, past days are the forecasts that were made for them. The downloaded levels replace the current ones:
+the wind at 10, 80, 120 and 180 m above the ground, and at the standard pressure levels above it, at altitudes above sea
+level. The data comes from `Open-Meteo <https://open-meteo.com>`__ under the CC BY 4.0 license; downloading sends the
+location and date to open-meteo.com.
+
 Simulation options
 ------------------
 
