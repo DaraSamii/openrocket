@@ -89,6 +89,7 @@ public class RocketFigure extends AbstractScaleFigure {
 	private RocketPanel.VIEW_TYPE currentViewType = RocketPanel.VIEW_TYPE.SideView;
 	
 	private double rotation;
+	private FigureElement overlay = null;
 	private Transformation axialRotation;
 
 	private boolean drawCarets = true;
@@ -211,6 +212,16 @@ public class RocketFigure extends AbstractScaleFigure {
 	
 	public void addRelativeExtra(FigureElement p) {
 		relativeExtra.add(p);
+	}
+
+	/**
+	 * Sets an element that is drawn in rocket coordinates also when the CG and CP are hidden, such as the Mach
+	 * angle lines.
+	 *
+	 * @param element the element, or null to draw none
+	 */
+	public void setOverlay(FigureElement element) {
+		this.overlay = element;
 	}
 	
 	public void removeRelativeExtra(FigureElement p) {
@@ -346,6 +357,10 @@ public class RocketFigure extends AbstractScaleFigure {
 	
 		// Draw motors
 		drawMotors(g2);
+
+		if (overlay != null && currentViewType != RocketPanel.VIEW_TYPE.BackView) {
+			overlay.paint(g2, scale, this.getVisibleRect());
+		}
 
 
 		// Draw relative extras

@@ -41,6 +41,7 @@ import info.openrocket.swing.gui.configdialog.ComponentConfigDialog;
 import info.openrocket.swing.gui.dialogs.DisplaySettingsDialog;
 import info.openrocket.swing.gui.figure3d.RocketFigure3d;
 import info.openrocket.swing.gui.figureelements.CGCaret;
+import info.openrocket.swing.gui.figureelements.MachAngleLines;
 import info.openrocket.swing.gui.figureelements.CPCaret;
 import info.openrocket.swing.gui.figureelements.Caret;
 import info.openrocket.swing.gui.figureelements.RocketInfo;
@@ -73,6 +74,7 @@ import javax.swing.DefaultComboBoxModel;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -264,6 +266,9 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 
 	private Caret extraCP = null;
 	private Caret extraCG = null;
+	private final MachAngleLines machAngleLines = new MachAngleLines();
+	/** Mach number of the Mach angle lines, or NaN when they are hidden */
+	private double machAngleMach = Double.NaN;
 	private RocketInfo extraText = null;
 
 	/* Caliper tool */
@@ -903,7 +908,24 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		showCGCP.setText(trans.get("RocketPanel.checkbox.ShowCGCP"));
 		showCGCP.setSelected(true);
 		showCGCP.setToolTipText(trans.get("RocketPanel.checkbox.ShowCGCP.ttip"));
-		ribbon.add(showCGCP, "cell 4 0, gapleft para");
+		ribbon.add(showCGCP, "cell 4 0, gapleft para, split 3");
+
+		// Mach angle lines
+		final JSpinner machSpinner = new JSpinner(new SpinnerNumberModel(2.0, 1.01, 50.0, 0.1));
+		machSpinner.setToolTipText(trans.get("RocketPanel.lbl.MachNumber.ttip"));
+		machSpinner.setEnabled(false);
+		final JCheckBox showMachAngles = new JCheckBox(trans.get("RocketPanel.checkbox.MachAngles"));
+		showMachAngles.setToolTipText(trans.get("RocketPanel.checkbox.MachAngles.ttip"));
+		ActionListener machListener = e -> {
+			machSpinner.setEnabled(showMachAngles.isSelected());
+			machAngleMach = showMachAngles.isSelected() ? (Double) machSpinner.getValue() : Double.NaN;
+			updateExtras();
+			updateFigures();
+		};
+		showMachAngles.addActionListener(machListener);
+		machSpinner.addChangeListener(e -> machListener.actionPerformed(null));
+		ribbon.add(showMachAngles, "cell 4 0, gapleft para");
+		ribbon.add(machSpinner, "cell 4 0, wmin 55lp");
 
 		showCGCP.addActionListener(new ActionListener() {
 			@Override
@@ -1524,6 +1546,8 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 			figure3d.setCaretPositions(invalidPosition, invalidPosition);
 		}
 
+		machAngleLines.update(curConfig, length > 0 ? machAngleMach : Double.NaN, rotation);
+
 		if (length > 0 &&
 				((figure.getCurrentViewType() == RocketPanel.VIEW_TYPE.TopView) || (figure.getCurrentViewType() == RocketPanel.VIEW_TYPE.SideView))) {
 			extraCP.setPosition(cpx, cpy);
@@ -1819,6 +1843,7 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		// Always show CP and CG carets (even in snap mode or when dragging)
 		figure.addRelativeExtra(extraCP);
 		figure.addRelativeExtra(extraCG);
+		figure.setOverlay(machAngleLines);
 
 		if (inSnapMode) {
 			// In snap mode: show snap mode message instead of RocketInfo
