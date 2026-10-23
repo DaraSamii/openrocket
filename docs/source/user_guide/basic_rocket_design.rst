@@ -107,6 +107,11 @@ You may have noticed that, apart from the mass, there is no noticeable differenc
 different :guilabel:`View Type`, by selecting the desired view from the drop-down list at the left of the main OpenRocket
 program window.
 
+For supersonic flight, check :guilabel:`Mach angles` above the rocket view and enter a Mach number. The side and top
+views then show dotted lines at the Mach angle, :math:`\mu = \sin^{-1}(1/M)`: the Mach cone from the nose tip, and a
+line outwards from the tip of each fin. With them you can see whether the fin tips are inside the Mach cone of the
+nose. Nothing is shown at or below Mach 1, where there is no Mach angle.
+
 Motor Tab
 ^^^^^^^^^
 
