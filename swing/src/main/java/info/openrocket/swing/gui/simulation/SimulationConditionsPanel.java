@@ -627,7 +627,8 @@ public class SimulationConditionsPanel extends JPanel {
 		editButton.setIcon(Icons.EDIT_EDIT);
 		editButton.addActionListener(e -> {
 			Window owner = SwingUtilities.getWindowAncestor(panel);
-			MultiLevelWindEditDialog dialog = new MultiLevelWindEditDialog(owner, model);
+			MultiLevelWindEditDialog dialog = new MultiLevelWindEditDialog(owner, model,
+					options.getLaunchLatitude(), options.getLaunchLongitude());
 			dialog.setVisible(true);
 			
 			// Update summary after dialog is closed

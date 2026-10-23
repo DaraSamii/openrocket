@@ -43,7 +43,12 @@ public class MultiLevelWindEditDialog extends JDialog {
 		initColors();
 	}
 
-	public MultiLevelWindEditDialog(Window owner, MultiLevelPinkNoiseWindModel model) {
+	/**
+	 * @param latitude latitude of the launch site, in degrees, to download a wind profile for
+	 * @param longitude longitude of the launch site, in degrees, to download a wind profile for
+	 */
+	public MultiLevelWindEditDialog(Window owner, MultiLevelPinkNoiseWindModel model, double latitude,
+			double longitude) {
 		super(owner, trans.get("WindProfileEditorDlg.title"), ModalityType.APPLICATION_MODAL);
 
 		// Create main panel with split layout
@@ -181,6 +186,19 @@ public class MultiLevelWindEditDialog extends JDialog {
 		});
 		controlsPanel.add(resetButton, "skip 1, growx");
 
+		//// Download Levels
+		JButton downloadButton = new JButton(trans.get("WindProfileEditorDlg.but.downloadLevels"));
+		downloadButton.setToolTipText(trans.get("WindProfileEditorDlg.but.downloadLevels.ttip"));
+		downloadButton.setIcon(Icons.FILE_IMPORT);
+		downloadButton.addActionListener(e -> {
+			if (downloadLevels(latitude, longitude)) {
+				butMSL.setSelected(true);
+				windTable.updateAltitudeHeader(WindModel.AltitudeReference.MSL);
+				visualization.repaint();
+			}
+		});
+		controlsPanel.add(downloadButton, "gapleft para, growx");
+
 		//// Export Levels
 		/*JButton exportButton = new JButton(trans.get("WindProfileEditorDlg.but.exportLevels"));
 		exportButton.setToolTipText(trans.get("WindProfileEditorDlg.but.exportLevels.ttip"));
@@ -215,6 +233,25 @@ public class MultiLevelWindEditDialog extends JDialog {
 		setMinimumSize(new Dimension(700, 400));
 
 		GUIUtil.installEscapeCloseButtonOperation(this, closeButton);
+	}
+
+	/**
+	 * @return true if the levels were replaced by a downloaded profile
+	 */
+	private boolean downloadLevels(double latitude, double longitude) {
+		WindProfileDownloadDialog downloadDialog = new WindProfileDownloadDialog(this, latitude, longitude);
+		downloadDialog.setVisible(true);
+		if (downloadDialog.getLevels() == null) {
+			return false;
+		}
+		int result = JOptionPane.showConfirmDialog(this, trans.get("WindProfileEditorDlg.dlg.overwriteLevels.msg"),
+				trans.get("WindProfileEditorDlg.dlg.overwriteLevels.title"), JOptionPane.YES_NO_OPTION,
+				JOptionPane.WARNING_MESSAGE);
+		if (result != JOptionPane.YES_OPTION) {
+			return false;
+		}
+		windTable.setLevels(downloadDialog.getLevels());
+		return true;
 	}
 
 	private void importLevels(MultiLevelPinkNoiseWindModel model) {

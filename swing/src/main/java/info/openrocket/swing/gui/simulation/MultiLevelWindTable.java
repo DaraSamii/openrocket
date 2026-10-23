@@ -4,6 +4,7 @@ import info.openrocket.core.l10n.Translator;
 import info.openrocket.core.models.atmosphere.ExtendedISAModel;
 import info.openrocket.core.models.wind.MultiLevelPinkNoiseWindModel;
 import info.openrocket.core.models.wind.MultiLevelPinkNoiseWindModel.LevelWindModel;
+import info.openrocket.core.models.wind.OpenMeteoWindProfile;
 import info.openrocket.core.models.wind.WindModel;
 import info.openrocket.core.preferences.ApplicationPreferences;
 import info.openrocket.core.startup.Application;
@@ -496,6 +497,18 @@ public class MultiLevelWindTable extends JPanel implements ChangeSource {
 
 	public void resetLevels() {
 		windModel.resetLevels();
+		syncRowsFromModel();
+	}
+
+	/**
+	 * Replace the levels with downloaded ones, whose altitudes are above sea level.
+	 */
+	public void setLevels(List<OpenMeteoWindProfile.Level> levels) {
+		windModel.clearLevels();
+		windModel.setAltitudeReference(WindModel.AltitudeReference.MSL);
+		for (OpenMeteoWindProfile.Level level : levels) {
+			windModel.addWindLevel(level.altitude(), level.speed(), level.direction());
+		}
 		syncRowsFromModel();
 	}
 
