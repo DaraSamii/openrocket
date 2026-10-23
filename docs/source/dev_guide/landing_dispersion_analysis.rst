@@ -167,6 +167,7 @@ switches among all eligible landing bodies and provides:
 * a pad-relative east/north scatter plot with nominal and sample-mean markers;
 * empirical nearest-rank R50, R90, and R95 radii measured about the sample mean;
 * one-, two-, and three-sigma sample-covariance ellipses;
+* an optional OpenStreetMap map of the launch site behind the landings;
 * a PNG export of the plot as displayed; and
 * every run's success/failure, landing, maximum altitude, and flight time.
 
@@ -199,6 +200,15 @@ palette, drag-to-pan, uniform mouse-wheel zoom, and explicit zoom-in, fit, and
 zoom-out controls.  Covariance ellipses share one color and use solid, dashed,
 and dash-dotted strokes for one, two, and three sigma.
 
+**Show map**, off by default, draws OpenStreetMap tiles of the launch site behind the
+landings.  The launch site is the latitude and longitude of the simulation's launch
+conditions, and the landings are placed on the map by their east and north distance
+from it, which is accurate for the few kilometres of a landing cloud.  The zoom level
+follows the plot scale.  Following the OpenStreetMap tile usage policy, only the
+visible tiles are downloaded, two at a time, with an OpenRocket User-Agent; they are
+kept for a week in the ``MapTiles`` folder of the OpenRocket user directory, and the
+map is credited on the plot.  Showing the map sends the area to openstreetmap.org.
+
 The plot is titled after the simulation and subtitled with the landing body, the
 number of dispersed runs that landed, and the master seed, so an exported image
 identifies the analysis that produced it without the surrounding dialog.  The
@@ -223,8 +233,8 @@ variation, independent radial CG offsets, per-device parachute inflation, or
 discrete failure modes.  A single recovery-drag multiplier covers every deployed
 device, so a drogue and a main vary together.  Extensions that do not explicitly
 opt into side-effect-free concurrent execution cannot be used in the analysis.  It
-also lacks convergence confidence intervals, sensitivity attribution,
-latitude/longitude conversion, terrain, and range-boundary overlays.
+also lacks convergence confidence intervals, sensitivity attribution, landing
+latitude/longitude output, terrain, and range-boundary overlays.
 
 Two parameters are narrower than their names suggest.  Ignition timing shifts only
 air-started and upper-stage motors, because moving the pad ignition translates the
