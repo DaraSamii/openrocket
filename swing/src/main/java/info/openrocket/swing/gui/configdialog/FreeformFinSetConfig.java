@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.swing.AbstractAction;
@@ -33,6 +34,7 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
@@ -95,6 +97,9 @@ public class FreeformFinSetConfig extends FinSetConfig {
 	private FinPointTableModel tableModel = null;
 	private JPopupMenu pm;
 	private JPopupMenu figurePopupMenu;
+	private FinPointAction roundCornerAction;
+	private FinPointAction chamferCornerAction;
+	private FinPointAction curveEdgeAction;
 	
 	private int dragIndex = -1;
 	private Point dragPoint = null;
@@ -337,6 +342,10 @@ public class FreeformFinSetConfig extends FinSetConfig {
 			}
 		});
 		
+		//// Smooth outline
+		pointDataButton.addMenuItem(trans.get("FreeformFinSetConfig.lbl.shapeTool.SMOOTH_OUTLINE"),
+				e -> applyShapeTool(FinShapeToolDialog.Tool.SMOOTH_OUTLINE, -1));
+
 		//// Export CSV
 		pointDataButton.addMenuItem(trans.get("FreeformFinSetConfig.lbl.exportCSV"), new ActionListener() {
 			@Override
@@ -386,13 +395,24 @@ public class FreeformFinSetConfig extends FinSetConfig {
 		// Context menu for table
 		insertFinPointAction = new InsertPointAction();
 		deleteFinPointAction = new DeletePointAction();
+		roundCornerAction = new ShapeToolAction(FinShapeToolDialog.Tool.ROUND_CORNER);
+		chamferCornerAction = new ShapeToolAction(FinShapeToolDialog.Tool.CHAMFER_CORNER);
+		curveEdgeAction = new ShapeToolAction(FinShapeToolDialog.Tool.CURVE_EDGE);
 		pm = new JPopupMenu();
 		pm.add(insertFinPointAction);
 		pm.add(deleteFinPointAction);
+		pm.addSeparator();
+		pm.add(roundCornerAction);
+		pm.add(chamferCornerAction);
+		pm.add(curveEdgeAction);
 		
 		// Context menu for figure
 		figurePopupMenu = new JPopupMenu();
 		figurePopupMenu.add(deleteFinPointAction);
+		figurePopupMenu.addSeparator();
+		figurePopupMenu.add(roundCornerAction);
+		figurePopupMenu.add(chamferCornerAction);
+		figurePopupMenu.add(curveEdgeAction);
 
 		table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
 			@Override
@@ -422,6 +442,7 @@ public class FreeformFinSetConfig extends FinSetConfig {
         panel.add(new StyledLabel(trans.get("FreeformFinSetConfig.lbl.clickDrag"), -2), "spanx 2, wrap");
         panel.add(new StyledLabel(trans.get("FreeformFinSetConfig.lbl.shiftClickDrag"), -2), "spanx 2");
         panel.add(new StyledLabel(trans.get("FreeformFinSetConfig.lbl.ctrlShiftClickDrag"), -2), "spanx 2, wrap");
+        panel.add(new StyledLabel(trans.get("FreeformFinSetConfig.lbl.rightClickShape"), -2), "spanx 4, wrap");
         
         // row of controls at the bottom of the tab:
 		finPointUndoButton = new JButton(Icons.EDIT_UNDO);
@@ -633,6 +654,37 @@ public class FreeformFinSetConfig extends FinSetConfig {
 		}
 	}
 
+	/**
+	 * Applies a shape tool to the fin points, after asking for its settings, as one undoable edit.
+	 *
+	 * @param index the corner point, or the end point of the edge, the tool works on
+	 */
+	private void applyShapeTool(FinShapeToolDialog.Tool tool, int index) {
+		if (table.isEditing()) {
+			table.getCellEditor().cancelCellEditing();
+		}
+		final FreeformFinSet finSet = (FreeformFinSet) component;
+		FinShapeToolDialog dialog = new FinShapeToolDialog(SwingUtilities.getWindowAncestor(this), tool,
+				Arrays.asList(finSet.getFinPoints()), index);
+		dialog.setVisible(true);
+		List<CoordinateIF> points = dialog.getResult();
+		if (points == null) {
+			return;
+		}
+		log.info(Markers.USER_MARKER, "Applying fin shape tool " + tool + " at " + index);
+		beginFinPointEdit();
+		try {
+			finSet.setPoints(new ArrayList<>(points));
+		} finally {
+			commitFinPointEdit();
+		}
+		// The fin set keeps its old points when the new outline crosses itself
+		if (finSet.getPointCount() != points.size()) {
+			JOptionPane.showMessageDialog(this, trans.get("FinShapeToolDlg.msg.intersects"),
+					trans.get("FinShapeToolDlg.msg.intersects.title"), JOptionPane.WARNING_MESSAGE);
+		}
+	}
+
 	private void doPopup(MouseEvent e) {
 		pm.show(e.getComponent(), e.getX(), e.getY());
 	}
@@ -644,6 +696,9 @@ public class FreeformFinSetConfig extends FinSetConfig {
 
 		insertFinPointAction.updateEnabledState();
 		deleteFinPointAction.updateEnabledState();
+		roundCornerAction.updateEnabledState();
+		chamferCornerAction.updateEnabledState();
+		curveEdgeAction.updateEnabledState();
 	}
 
 	private class FinPointScrollPane extends ScaleScrollPane {
@@ -659,6 +714,20 @@ public class FreeformFinSetConfig extends FinSetConfig {
 		public void mousePressed(MouseEvent event) {
 			requestFocusInWindow();
 			final FreeformFinSet finset = (FreeformFinSet) component;
+
+			// Right-click on an edge: shape tools for the edge, instead of adding a point
+			if (SwingUtilities.isRightMouseButton(event) && getPoint(event) < 0) {
+				final int edge = getSegment(event);
+				if (edge >= 0) {
+					JPopupMenu edgeMenu = new JPopupMenu();
+					JMenuItem curveItem = new JMenuItem(trans.get("FreeformFinSetConfig.lbl.curveThisEdge"));
+					curveItem.addActionListener(e -> applyShapeTool(FinShapeToolDialog.Tool.CURVE_EDGE, edge));
+					edgeMenu.add(curveItem);
+					Point point = SwingUtilities.convertPoint(event.getComponent(), event.getX(), event.getY(), this);
+					edgeMenu.show(this, point.x, point.y);
+					return;
+				}
+			}
 
 			final int pressIndex = getPoint(event);
 			if (pressIndex >= 0) {
@@ -1153,6 +1222,29 @@ public class FreeformFinSetConfig extends FinSetConfig {
 		public void updateEnabledState() {
 			// You can't add to the last fin point
 			setEnabled(table.getSelectedRow() < table.getRowCount() - 1);
+		}
+	}
+
+	private class ShapeToolAction extends FinPointAction {
+		private final FinShapeToolDialog.Tool tool;
+
+		ShapeToolAction(FinShapeToolDialog.Tool tool) {
+			this.tool = tool;
+			putValue(NAME, trans.get("FreeformFinSetConfig.lbl.shapeTool." + tool.name()));
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			int row = table.getSelectedRow();
+			// The edge tool works on the edge from the selected point to the next one
+			applyShapeTool(tool, tool == FinShapeToolDialog.Tool.CURVE_EDGE ? row + 1 : row);
+		}
+
+		@Override
+		public void updateEnabledState() {
+			int row = table.getSelectedRow();
+			int last = table.getRowCount() - 1;
+			setEnabled(tool == FinShapeToolDialog.Tool.CURVE_EDGE ? row >= 0 && row < last : row > 0 && row < last);
 		}
 	}
 
