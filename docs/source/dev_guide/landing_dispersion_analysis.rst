@@ -127,12 +127,32 @@ simulated stage-separation branch.  This keeps separated boosters selectable eve
 when they tumble or impact without deploying recovery.  Bodies are correlated
 between trajectories by their stable source-component ID, not by the order in
 which branches happen to be created in a particular run.  A ballistic primary
-body remains excluded from the landing-dispersion view, but its scalar flight
-metrics remain available.
+body remains excluded from the landing-dispersion view, unless it flies a ballistic
+recovery scenario on purpose, but its scalar flight metrics remain available.
 Position X is reported as east and Y as north in metres.  A branch abort excludes
 only that body from the run's dispersion statistics; successful sibling bodies
 remain usable.  Trajectory-wide exceptions and missing ground hits are retained
 as failures and excluded from the affected statistics.
+
+Recovery scenarios
+------------------
+
+A ``RecoveryScenario`` changes the recovery of one stage to compare it with the
+designed recovery.  Every stage with a deploying recovery device can fly
+**Ballistic**, where none of its devices deploys.  A stage with dual deployment can
+also fly **Drogue only**, **Main only**, and **Main at apogee**, where the drogue does
+not deploy and the mains deploy at apogee without delay.  The drogue is the device
+selected in the stage's dual-deployment recovery setting; the other devices of the
+stage are mains.  A design that has not set the drogue there offers only the
+ballistic scenario.
+
+A scenario is applied to the independent copy of the rocket that each trajectory
+flies, by changing the deployment event of that stage's devices for the simulated
+flight configuration.  ``runWithScenarios`` flies the analysis with the designed
+recovery, then the same samples, simulation seeds included, with each chosen
+scenario, so a scenario's landings differ from the designed ones only through
+recovery.  Each scenario costs as much time as the designed analysis.  The chosen
+scenarios are not saved with the settings.
 
 Output statistics and UI
 ------------------------
@@ -167,6 +187,9 @@ switches among all eligible landing bodies and provides:
 * a pad-relative east/north scatter plot with nominal and sample-mean markers;
 * empirical nearest-rank R50, R90, and R95 radii measured about the sample mean;
 * one-, two-, and three-sigma sample-covariance ellipses;
+* the landings of the chosen recovery scenarios of the selected body's stage, in a
+  color per scenario kind, which a **Show landings** list turns on and off together
+  with the dispersed landings;
 * a PNG export of the plot as displayed; and
 * every run's success/failure, landing, maximum altitude, and flight time.
 
@@ -220,7 +243,9 @@ file.  It supports independent inputs only; it has no
 correlation matrix, empirical distributions, historical weather ensembles,
 per-stage mass/propulsion errors, explicit thrust/fin misalignment, wind-shear
 variation, independent radial CG offsets, per-device parachute inflation, or
-discrete failure modes.  A single recovery-drag multiplier covers every deployed
+discrete failure modes other than the recovery scenarios.  Statistics, the run
+table, CSV export, and the printed report cover the designed recovery only; the
+recovery scenarios appear only as landing points.  A single recovery-drag multiplier covers every deployed
 device, so a drogue and a main vary together.  Extensions that do not explicitly
 opt into side-effect-free concurrent execution cannot be used in the analysis.  It
 also lacks convergence confidence intervals, sensitivity attribution,
