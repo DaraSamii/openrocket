@@ -145,7 +145,14 @@ explicitly labeled as starting points rather than validated tolerances, can be
 restored with **Reset defaults**, and should be replaced by measured uncertainty
 data when available.  **All fixed** remains available for zeroing every explicit
 spread.  A ``SwingWorker`` runs the trajectories off the event-dispatch thread and
-supports cancellation.
+supports cancellation.  While it runs, the dialog shows the time that has passed, the
+estimated time left and total time, the speed in trajectories per second, the number of
+threads, and the processor and memory in use.  The estimate uses the trajectories after
+the first: the nominal trajectory runs alone and is much slower per trajectory than the
+dispersed ones, which run in parallel.  Processor use is the share of all processor cores
+that OpenRocket used since the last refresh, from the processor time of the process; it
+is not shown on systems that do not report it.  Memory use is the Java heap in use out of
+the maximum heap.
 
 The run count, seed, distributions, and spreads are saved on each simulation when
 the setup dialog closes after a valid change, or when an analysis starts.  They are
