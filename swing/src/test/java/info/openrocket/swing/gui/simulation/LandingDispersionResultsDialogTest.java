@@ -24,6 +24,7 @@ import info.openrocket.core.simulation.montecarlo.LandingPoint;
 import info.openrocket.core.simulation.montecarlo.MonteCarloDistribution;
 import info.openrocket.core.simulation.montecarlo.MonteCarloParameter;
 import info.openrocket.core.simulation.montecarlo.MonteCarloSettings;
+import info.openrocket.core.simulation.montecarlo.RecoveryScenario;
 import info.openrocket.core.unit.UnitGroup;
 
 public class LandingDispersionResultsDialogTest {
@@ -44,6 +45,18 @@ public class LandingDispersionResultsDialogTest {
 		// A tiny or unrealised panel must not produce a degenerate scale.
 		assertEquals(6, LandingDispersionResultsDialog.exportScale(0));
 		assertEquals(6, LandingDispersionResultsDialog.exportScale(100));
+	}
+
+	/** A recovery scenario changes the landings of its own stage only, so other bodies do not show it. */
+	@Test
+	public void testRecoveryScenarioIsShownOnlyForItsOwnStage() {
+		RecoveryScenario scenario = new RecoveryScenario(RecoveryScenario.Kind.BALLISTIC, "booster-id", "Booster");
+
+		assertTrue(LandingDispersionResultsDialog.scenarioAppliesTo(scenario,
+				new LandingBody("booster-id", 1, "Booster")));
+		assertFalse(LandingDispersionResultsDialog.scenarioAppliesTo(scenario,
+				new LandingBody("sustainer-id", 0, "Sustainer")));
+		assertFalse(LandingDispersionResultsDialog.scenarioAppliesTo(scenario, null));
 	}
 
 	/** With no body there is nothing to describe, so the subtitle stays empty. */

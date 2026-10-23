@@ -31,6 +31,7 @@ import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.Icon;
@@ -54,6 +55,7 @@ import info.openrocket.core.simulation.montecarlo.LandingPoint;
 import info.openrocket.core.simulation.montecarlo.MonteCarloResult;
 import info.openrocket.core.simulation.montecarlo.MonteCarloRunResult;
 import info.openrocket.core.simulation.montecarlo.MonteCarloSettings;
+import info.openrocket.core.simulation.montecarlo.RecoveryScenario;
 import info.openrocket.core.startup.Application;
 import info.openrocket.core.unit.Unit;
 import info.openrocket.core.unit.UnitGroup;
@@ -103,6 +105,11 @@ public final class LandingDispersionResultsDialog extends JDialog {
 	private static Color meanColor;
 	private static Color launchPadColor;
 	private static Color ellipseColor;
+	/** Landing colors of the recovery scenario kinds, in kind order, apart from the colors of the fixed series */
+	private static final Color[] SCENARIO_COLORS = {
+			new Color(0xE377C2), new Color(0x17BECF), new Color(0x8C564B), new Color(0xBCBD22)};
+	/** Index of the landing series of the first recovery scenario, after the fixed series */
+	private static final int FIRST_SCENARIO_SERIES = 7;
 	private static final float ELLIPSE_WIDTH = 1.8f;
 	private static final double ELLIPSE_LEGEND_LINE_LENGTH = 24.0;
 
@@ -144,6 +151,9 @@ public final class LandingDispersionResultsDialog extends JDialog {
 
 	private final String simulationName;
 	private final MonteCarloResult result;
+	private final List<RecoveryScenario> scenarios;
+	/** Show or hide the landings: the first for the designed recovery, then one per recovery scenario */
+	private final List<JCheckBox> landingToggles = new ArrayList<>();
 	private final Unit distanceUnit;
 	private final JComboBox<LandingBody> bodyCombo;
 	private final TextTitle chartSubtitle = new TextTitle("");
@@ -165,6 +175,7 @@ public final class LandingDispersionResultsDialog extends JDialog {
 				ModalityType.APPLICATION_MODAL);
 		this.simulationName = simulationName;
 		this.result = result;
+		this.scenarios = List.copyOf(result.getScenarioResults().keySet());
 		this.distanceUnit = UnitGroup.UNITS_DISTANCE.getDefaultUnit();
 		this.bodyCombo = new JComboBox<>(result.getLandingBodies().toArray(new LandingBody[0]));
 		this.chart = createChart();
@@ -205,7 +216,11 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		chartContainer.add(chartPanel, BorderLayout.CENTER);
 		chartContainer.add(createChartControls(), BorderLayout.SOUTH);
 
-		JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, chartContainer, summaryPanel);
+		JPanel sidePanel = new JPanel(new BorderLayout(0, 6));
+		sidePanel.add(createLandingToggles(), BorderLayout.NORTH);
+		sidePanel.add(summaryPanel, BorderLayout.CENTER);
+
+		JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, chartContainer, sidePanel);
 		splitPane.setResizeWeight(0.7);
 		splitPane.setContinuousLayout(true);
 
@@ -335,6 +350,70 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		});
 		installChartMouseControls(panel);
 		return panel;
+	}
+
+	/**
+	 * Check boxes that show or hide the landings. The colored dot of a scenario's check box is its legend, which keeps
+	 * the chart legend short.
+	 */
+	private JPanel createLandingToggles() {
+		JPanel toggles = new JPanel(new MigLayout("ins 0 4 0 4, gapy 0, wrap 1"));
+		toggles.setBorder(BorderFactory.createTitledBorder(trans.get("LandingDispersionResultsDlg.border.showLandings")));
+		addLandingToggle(toggles, trans.get("LandingDispersionResultsDlg.series.landings"), landingColor);
+		for (RecoveryScenario scenario : scenarios) {
+			addLandingToggle(toggles, scenarioName(scenario), scenarioColor(scenario));
+		}
+		return toggles;
+	}
+
+	private void addLandingToggle(JPanel toggles, String name, Color color) {
+		String escapedName = name.replace("&", "&amp;").replace("<", "&lt;");
+		JCheckBox toggle = new JCheckBox(String.format("<html><font color=\"#%06x\">\u25CF</font> %s</html>",
+				color.getRGB() & 0xFFFFFF, escapedName), true);
+		toggle.addActionListener(event -> {
+			if (chart.getXYPlot().getRenderer() instanceof XYLineAndShapeRenderer renderer) {
+				applyLandingToggles(renderer);
+			}
+		});
+		landingToggles.add(toggle);
+		toggles.add(toggle);
+	}
+
+	private static Color scenarioColor(RecoveryScenario scenario) {
+		return SCENARIO_COLORS[scenario.kind().ordinal()];
+	}
+
+	/**
+	 * A scenario changes only the landings of its own stage, so it is shown only for that body.
+	 */
+	static boolean scenarioAppliesTo(RecoveryScenario scenario, LandingBody body) {
+		return body != null && scenario.stageId().equals(body.bodyId());
+	}
+
+	/**
+	 * @return the name of a recovery scenario, with its stage
+	 */
+	static String scenarioName(RecoveryScenario scenario) {
+		return String.format(trans.get("LandingDispersionResultsDlg.series.scenario"), scenario.stageName(),
+				trans.get("LandingDispersionDlg.scenario." + scenario.kind().name()));
+	}
+
+	private void applyLandingToggles(XYLineAndShapeRenderer renderer) {
+		for (int i = 0; i < landingToggles.size(); i++) {
+			int series = i == 0 ? 0 : FIRST_SCENARIO_SERIES + i - 1;
+			renderer.setSeriesVisible(series, landingToggles.get(i).isSelected());
+		}
+	}
+
+	private void installRenderer(boolean hasNominal, boolean hasStatistics) {
+		XYLineAndShapeRenderer renderer = createRenderer(hasNominal, hasStatistics);
+		for (int i = 0; i < scenarios.size(); i++) {
+			configurePointSeries(renderer, FIRST_SCENARIO_SERIES + i, scenarioColor(scenarios.get(i)),
+					createPointShape(0, false), false);
+		}
+		applyLandingToggles(renderer);
+		highlightedSeries = -1;
+		chart.getXYPlot().setRenderer(renderer);
 	}
 
 	private JPanel createChartControls() {
@@ -482,8 +561,7 @@ public final class LandingDispersionResultsDialog extends JDialog {
 			if (chart.getXYPlot().getDataset() instanceof XYSeriesCollection dataset) {
 				boolean hasNominal = dataset.getSeriesCount() > 1 && dataset.getItemCount(1) > 0;
 				boolean hasStatistics = dataset.getSeriesCount() > 2 && dataset.getItemCount(2) > 0;
-				highlightedSeries = -1;
-				chart.getXYPlot().setRenderer(createRenderer(hasNominal, hasStatistics));
+				installRenderer(hasNominal, hasStatistics);
 			}
 			chartPanel.setBorder(BorderFactory.createLineBorder(borderColor));
 			chartPanel.repaint();
@@ -501,6 +579,9 @@ public final class LandingDispersionResultsDialog extends JDialog {
 	private void updateSelectedBody() {
 		LandingBody body = (LandingBody) bodyCombo.getSelectedItem();
 		runTableModel.setBody(body);
+		for (int i = 0; i < scenarios.size(); i++) {
+			landingToggles.get(i + 1).setEnabled(scenarioAppliesTo(scenarios.get(i), body));
+		}
 		if (body == null) {
 			updateChart(null, List.of(), null, null);
 			summaryArea.setText(trans.get("LandingDispersionResultsDlg.msg.noLandings"));
@@ -548,10 +629,25 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		addEllipseSeries(dataset, trans.get("LandingDispersionResultsDlg.series.threeSigma"), statistics, 3,
 				distanceUnit);
 
+		// The same samples flown with each recovery scenario
+		for (RecoveryScenario scenario : scenarios) {
+			String name = scenarioName(scenario);
+			// Two stages can have the same name, and series names must be unique
+			while (dataset.getSeriesIndex(name) >= 0) {
+				name += "'";
+			}
+			XYSeries series = new XYSeries(name);
+			if (scenarioAppliesTo(scenario, body)) {
+				for (LandingPoint point : result.getScenarioResults().get(scenario).getLandingPoints(body.bodyId())) {
+					series.add(toDisplayDistance(point.east()), toDisplayDistance(point.north()));
+				}
+			}
+			dataset.addSeries(series);
+		}
+
 		XYPlot plot = chart.getXYPlot();
 		plot.setDataset(dataset);
-		highlightedSeries = -1;
-		plot.setRenderer(createRenderer(nominal != null, statistics != null));
+		installRenderer(nominal != null, statistics != null);
 		chart.setTitle(chartTitle());
 		chartSubtitle.setText(chartSubtitle(body, points.size(), result.getSettings()));
 		chartFitPending = true;
