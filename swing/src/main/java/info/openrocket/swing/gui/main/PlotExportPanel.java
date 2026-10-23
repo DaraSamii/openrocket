@@ -39,10 +39,12 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Rectangle;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Graphics2D;
@@ -63,8 +65,8 @@ import java.util.Set;
 
 /**
  * The Plot / Export tab: several plots of one simulation on one page, ready to use. It starts with the eight most
- * useful plots, each with one unit on its vertical axis; plots can be added, edited (data, axes, units, colors)
- * and removed. All plots can be exported at once, as one image or as the data in one CSV file.
+ * useful plots, each with one unit on its vertical axis; plots can be added, edited (data, axes, units, colors),
+ * maximized and removed. All plots can be exported at once, as one image or as the data in one CSV file.
  */
 public class PlotExportPanel extends JPanel {
 	private static final Translator trans = Application.getTranslator();
@@ -78,12 +80,14 @@ public class PlotExportPanel extends JPanel {
 
 	private final OpenRocketDocument document;
 	private final List<SimulationPlotConfiguration> plots = new ArrayList<>(mainPlots());
+	/** Index of the plot that is shown alone, as large as possible, or -1 to show all plots */
+	private int maximized = -1;
 
 	private final JComboBox<Simulation> simulationSelector = new JComboBox<>();
 	private final JButton addButton;
 	private final JButton exportImageButton;
 	private final JButton exportDataButton;
-	private final JPanel content = new JPanel(new BorderLayout());
+	private final JPanel content = new ContentPanel();
 	private final JPanel chartGrid = new JPanel(new GridLayout(0, COLUMNS, 8, 8));
 	private final JScrollPane scroll = new JScrollPane(content);
 	private int updating = 0;
@@ -172,7 +176,26 @@ public class PlotExportPanel extends JPanel {
 
 	void removePlot(int index) {
 		plots.remove(index);
+		if (maximized == index) {
+			maximized = -1;
+		} else if (maximized > index) {
+			maximized--;
+		}
 		updateCharts();
+	}
+
+	/**
+	 * Shows only the given plot, as large as possible, or all plots again.
+	 *
+	 * @param index the index of the plot, or -1 to show all plots
+	 */
+	void setMaximized(int index) {
+		maximized = index;
+		updateCharts();
+	}
+
+	int getMaximized() {
+		return maximized;
 	}
 
 	/**
@@ -223,6 +246,8 @@ public class PlotExportPanel extends JPanel {
 		chartGrid.removeAll();
 		if (simulation == null) {
 			content.add(new JLabel(trans.get("PlotExportPanel.lbl.NoData"), SwingConstants.CENTER), BorderLayout.CENTER);
+		} else if (maximized >= 0) {
+			content.add(createCard(simulation, maximized), BorderLayout.CENTER);
 		} else {
 			for (int i = 0; i < plots.size(); i++) {
 				chartGrid.add(createCard(simulation, i));
@@ -243,12 +268,17 @@ public class PlotExportPanel extends JPanel {
 		SimulationChart chartPanel = new SimulationChart(createChart(simulation, plots.get(index)));
 		chartPanel.setPreferredSize(new Dimension(400, CHART_HEIGHT));
 
+		boolean isMaximized = maximized == index;
+		JButton maximize = toolButton(isMaximized ? Icons.ZOOM_OUT : Icons.ZOOM_IN,
+				trans.get(isMaximized ? "PlotExportPanel.but.Restore.ttip" : "PlotExportPanel.but.Maximize.ttip"));
+		maximize.addActionListener(e -> setMaximized(isMaximized ? -1 : index));
 		JButton edit = toolButton(Icons.EDIT_EDIT, trans.get("PlotExportPanel.but.Edit.ttip"));
 		edit.addActionListener(e -> editPlot(index));
 		JButton remove = toolButton(Icons.EDIT_DELETE, trans.get("PlotExportPanel.but.Remove.ttip"));
 		remove.addActionListener(e -> removePlot(index));
 		JPanel tools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
 		tools.setOpaque(false);
+		tools.add(maximize);
 		tools.add(edit);
 		tools.add(remove);
 
@@ -344,7 +374,7 @@ public class PlotExportPanel extends JPanel {
 
 	/**
 	 * @return all plots in one image, {@link #COLUMNS} per row, drawn at {@link #EXPORT_SCALE} times the resolution
-	 * so that the text is sharp
+	 * so that the text is sharp. A maximized plot does not change the image.
 	 */
 	BufferedImage renderImage() {
 		List<JFreeChart> charts = new ArrayList<>();
@@ -398,6 +428,41 @@ public class PlotExportPanel extends JPanel {
 					prefs.getInt(ApplicationPreferences.EXPORT_DECIMAL_PLACES, TextUtil.DEFAULT_DECIMAL_PLACES),
 					prefs.getBoolean(ApplicationPreferences.EXPORT_EXPONENTIAL_NOTATION, true),
 					prefs.getString(ApplicationPreferences.EXPORT_COMMENT_CHARACTER, "#"), true, true, true);
+		}
+	}
+
+	/**
+	 * The scrolled content: as wide as the tab, and as high as the tab while a plot is maximized, so that plot fills
+	 * the tab.
+	 */
+	private class ContentPanel extends JPanel implements Scrollable {
+		ContentPanel() {
+			super(new BorderLayout());
+		}
+
+		@Override
+		public Dimension getPreferredScrollableViewportSize() {
+			return getPreferredSize();
+		}
+
+		@Override
+		public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+			return 16;
+		}
+
+		@Override
+		public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+			return CHART_HEIGHT;
+		}
+
+		@Override
+		public boolean getScrollableTracksViewportWidth() {
+			return true;
+		}
+
+		@Override
+		public boolean getScrollableTracksViewportHeight() {
+			return maximized >= 0;
 		}
 	}
 }

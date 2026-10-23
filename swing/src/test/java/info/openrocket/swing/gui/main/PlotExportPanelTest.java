@@ -104,6 +104,20 @@ class PlotExportPanelTest {
 	}
 
 	@Test
+	void plotCanBeMaximizedAndRestored() {
+		PlotExportPanel panel = new PlotExportPanel(createDocument());
+
+		panel.setMaximized(3);
+		assertEquals(3, panel.getMaximized());
+		// Removing a plot before the maximized one keeps the same plot maximized
+		panel.removePlot(0);
+		assertEquals(2, panel.getMaximized());
+		// Removing the maximized plot shows all plots again
+		panel.removePlot(2);
+		assertEquals(-1, panel.getMaximized());
+	}
+
+	@Test
 	void documentWithoutSimulationDataShowsNoPlots() {
 		PlotExportPanel panel = new PlotExportPanel(OpenRocketDocumentFactory.createNewRocket());
 
@@ -125,11 +139,13 @@ class PlotExportPanelTest {
 	}
 
 	/**
-	 * Eight plots are four rows of two, each plot 600 x 400 drawn at twice the resolution.
+	 * Eight plots are four rows of two, each plot 600 x 400 drawn at twice the resolution, also when one plot is
+	 * maximized.
 	 */
 	@Test
 	void exportedImageHasAllPlotsAtTwiceTheResolution() throws Exception {
 		PlotExportPanel panel = new PlotExportPanel(createDocument());
+		panel.setMaximized(0);
 
 		BufferedImage image = panel.renderImage();
 		assertEquals(2 * 600 * 2, image.getWidth());
