@@ -72,6 +72,7 @@ public final class LandingDispersionDialog extends JDialog {
 	private final ParameterTableModel parameterTableModel;
 	private final JTable parameterTable;
 	private final JSpinner runCountSpinner;
+	private final JSpinner threadCountSpinner;
 	private final JTextField seedField;
 	private final JTextArea parameterDescription;
 	private final JPanel cards;
@@ -100,6 +101,7 @@ public final class LandingDispersionDialog extends JDialog {
 		this.parameterTableModel = new ParameterTableModel(parameterRows);
 		this.runCountSpinner = new JSpinner(new SpinnerNumberModel(MonteCarloSettings.DEFAULT_RUN_COUNT,
 				MonteCarloSettings.MIN_RUN_COUNT, MonteCarloSettings.MAX_RUN_COUNT, 50));
+		this.threadCountSpinner = new JSpinner(createThreadCountModel());
 		this.seedField = new JTextField(Integer.toString(ThreadLocalRandom.current().nextInt()), 11);
 		if (initialSettings != null) {
 			loadSettings(initialSettings);
@@ -219,6 +221,14 @@ public final class LandingDispersionDialog extends JDialog {
 				Integer.toString(ThreadLocalRandom.current().nextInt())));
 		seedControls.add(newSeedButton);
 		panel.add(seedControls, "growx, wrap");
+
+		// Threads
+		JLabel threadsLabel = new JLabel(trans.get("LandingDispersionDlg.lbl.threads"));
+		String threadsTooltip = trans.get("LandingDispersionDlg.lbl.threads.ttip");
+		threadsLabel.setToolTipText(threadsTooltip);
+		threadCountSpinner.setToolTipText(threadsTooltip);
+		panel.add(threadsLabel);
+		panel.add(threadCountSpinner, "w 90!, left, wrap");
 
 		// Input spreads
 		panel.add(new JLabel(trans.get("LandingDispersionDlg.lbl.spreads")));
@@ -384,6 +394,11 @@ public final class LandingDispersionDialog extends JDialog {
 			}
 			return null;
 		}
+		try {
+			threadCountSpinner.commitEdit();
+		} catch (ParseException exception) {
+			// An invalid entry keeps the last valid thread count, which the spinner shows again
+		}
 		return buildSettings(showErrors);
 	}
 
@@ -401,7 +416,7 @@ public final class LandingDispersionDialog extends JDialog {
 		MonteCarloSettings.Builder builder = MonteCarloSettings.builder()
 				.runCount(((Number) runCountSpinner.getValue()).intValue())
 				.seed(seed)
-				.threadCount(Math.max(1, SwingPreferences.getMaxThreadCount()));
+				.threadCount(((Number) threadCountSpinner.getValue()).intValue());
 		for (ParameterRow row : parameterRows) {
 			if (!Double.isFinite(row.spread) || row.spread < 0) {
 				if (showErrors) {
@@ -502,6 +517,15 @@ public final class LandingDispersionDialog extends JDialog {
 	private void saveSettings(MonteCarloSettings settings) {
 		persistSettings(simulation, settings);
 		settingsAtLastSave = settings;
+	}
+
+	/**
+	 * The thread count is not part of the saved settings: it only changes how fast the analysis runs, and the best
+	 * value depends on the computer. It starts at one thread per processor core.
+	 */
+	static SpinnerNumberModel createThreadCountModel() {
+		int cores = Math.max(1, SwingPreferences.getMaxThreadCount());
+		return new SpinnerNumberModel(cores, 1, cores, 1);
 	}
 
 	static MonteCarloSettings selectInitialSettings(MonteCarloSettings savedSettings,

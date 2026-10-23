@@ -106,7 +106,10 @@ its triggering event is placed 1 ms after the trigger.  These clips make extreme
 truncated and must be considered when using wide normal spreads.
 
 ``MonteCarloSimulationRunner`` performs one nominal run, then the requested number
-of dispersed runs on a thread pool.  Every sample is drawn before any trajectory
+of dispersed runs on a thread pool.  The dialog's :guilabel:`Threads` setting sets
+the pool size; it starts at one thread per processor core and is not saved with
+the settings, because it depends on the computer and does not change the analysis.
+Every sample is drawn before any trajectory
 starts, making sampled inputs independent of thread scheduling.  Each trajectory
 runs on an independent copy of the rocket so concurrent simulations do not share
 mutable configuration or aerodynamic caches.  Result order remains run-number

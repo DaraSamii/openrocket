@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 
+import javax.swing.SpinnerNumberModel;
+
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.document.Simulation;
@@ -58,6 +60,16 @@ public class LandingDispersionDialogTest extends BaseTestCase {
 		MonteCarloSettings changed = settings(303, 8, 0.2);
 		LandingDispersionDialog.persistSettings(simulation, changed);
 		assertSame(changed, simulation.getLandingDispersionSettings());
+	}
+
+	@Test
+	public void testThreadCountStartsAtOnePerCoreAndCannotExceedIt() {
+		int cores = Runtime.getRuntime().availableProcessors();
+		SpinnerNumberModel model = LandingDispersionDialog.createThreadCountModel();
+
+		assertEquals(cores, model.getNumber().intValue());
+		assertEquals(1, model.getMinimum());
+		assertEquals(cores, model.getMaximum());
 	}
 
 	/**
