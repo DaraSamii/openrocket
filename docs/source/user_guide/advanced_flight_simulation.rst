@@ -14,6 +14,32 @@ can export your data for analysis and charting in other packages.
 
 ----
 
+The Plot / Export tab
+=====================
+
+The :guilabel:`Plot / Export` tab, next to :guilabel:`Flight simulations`, shows several plots of a simulation on one
+page. Choose the simulation in the :guilabel:`Simulation` list at the top; only simulations that have been run are
+listed. The tab opens with the plots that are used most: the vertical motion, the total motion, the stability and the
+flight side profile.
+
+.. figure:: /img/user_guide/advanced_flight_simulation/PlotExportTab.png
+   :width: 95%
+   :align: center
+   :figclass: or-image-border
+   :alt: The Plot / Export tab.
+
+   The Plot / Export tab.
+
+- :guilabel:`Add plot` adds another plot: one of the preset plots, or a custom plot.
+- The edit button at the top of a plot opens the plot settings (described below in `Plotting data`_), where you can
+  change the plotted values, the axes, the units and the colors.
+- The delete button removes the plot.
+- :guilabel:`Export image` saves all plots in one PNG image, at twice the resolution of the screen.
+- :guilabel:`Export data` saves the data of all plots (the time and every plotted value) in one CSV file, with the CSV
+  settings that you used last time in `Exporting Data`_.
+
+You can zoom in on a plot with the mouse wheel, and move it by dragging.
+
 Plotting your rocket's flight
 =============================
 
