@@ -19,8 +19,10 @@ The Plot / Export tab
 
 The :guilabel:`Plot / Export` tab, next to :guilabel:`Flight simulations`, shows several plots of a simulation on one
 page. Choose the simulation in the :guilabel:`Simulation` list at the top; only simulations that have been run are
-listed. The tab opens with the plots that are used most: the vertical motion, the total motion, the stability and the
-flight side profile.
+listed. The tab opens with the eight plots that are used most: altitude, velocity, acceleration, stability margin,
+thrust and drag, drag coefficient, Mach number, and the flight path (altitude against the distance downrange). Each of
+these plots only shows values with the same unit, so they share one vertical axis. The rocket figure stays below the
+plots; drag the divider to give the plots more room.
 
 .. figure:: /img/user_guide/advanced_flight_simulation/PlotExportTab.png
    :width: 95%
@@ -30,7 +32,9 @@ flight side profile.
 
    The Plot / Export tab.
 
-- :guilabel:`Add plot` adds another plot: one of the preset plots, or a custom plot.
+- :guilabel:`Add plot` adds another plot: one of the eight plots above, one of the preset plots, or a custom plot.
+- The magnifier button at the top of a plot shows only that plot, as large as the tab; click it again to show all
+  plots.
 - The edit button at the top of a plot opens the plot settings (described below in `Plotting data`_), where you can
   change the plotted values, the axes, the units and the colors.
 - The delete button removes the plot.
