@@ -157,6 +157,7 @@ private static final Translator trans = Application.getTranslator();
 	public static final int DESIGN_TAB = 0;
 	public static final int FLIGHT_CONFIGURATION_TAB = 1;
 	public static final int SIMULATION_TAB = 2;
+	public static final int PLOT_EXPORT_TAB = 3;
 	private int previousTab = DESIGN_TAB;
 
 	private static final int CASCADE_OFFSET_X = 30;
@@ -195,6 +196,7 @@ private static final Translator trans = Application.getTranslator();
 	private final DesignPanel designPanel;
 	private final FlightConfigurationPanel flightConfigurationPanel;
 	private final SimulationPanel simulationPanel;
+	private final PlotExportPanel plotExportPanel;
 
 	private boolean showBananaForScaleInToolsMenu = false;
 	private JCheckBoxMenuItem bananaForScaleMenuItem = null;
@@ -254,6 +256,8 @@ private static final Translator trans = Application.getTranslator();
 		tabbedPane.addTab(trans.get("BasicFrame.tab.Rocketdesign"), null, designPanel);
 		tabbedPane.addTab(trans.get("BasicFrame.tab.Flightconfig"), null, flightConfigurationPanel);
 		tabbedPane.addTab(trans.get("BasicFrame.tab.Flightsim"), null, simulationPanel);
+		plotExportPanel = new PlotExportPanel(document);
+		tabbedPane.addTab(trans.get("BasicFrame.tab.PlotExport"), null, plotExportPanel);
 
 		//	Add change listener to catch when the tabs are changed.  This is to run simulations
 		//	automatically when the simulation tab is selected.
@@ -1447,7 +1451,8 @@ private static final Translator trans = Application.getTranslator();
 	/**
 	 * Select the tab on the main pane.
 	 *
-	 * @param tab	one of {@link #DESIGN_TAB}, {@link #FLIGHT_CONFIGURATION_TAB} or {@link #SIMULATION_TAB}.
+	 * @param tab	one of {@link #DESIGN_TAB}, {@link #FLIGHT_CONFIGURATION_TAB}, {@link #SIMULATION_TAB} or
+	 *             {@link #PLOT_EXPORT_TAB}.
 	 */
 	public void selectTab(int tab) {
 		tabbedPane.setSelectedIndex(tab);
@@ -2522,6 +2527,8 @@ private static final Translator trans = Application.getTranslator();
 			simulationPanel.updatePreviousSelection();
 		}
 		previousTab = tab;
+		// The plots use the full height of the window, without the rocket figure
+		rocketpanel.setVisible(tab != PLOT_EXPORT_TAB);
 		switch (tab) {
 			case DESIGN_TAB:
 				designPanel.takeTheSpotlight();
@@ -2532,6 +2539,9 @@ private static final Translator trans = Application.getTranslator();
 			case SIMULATION_TAB:
 				simulationPanel.takeTheSpotlight();
 				simulationPanel.activating();
+				break;
+			case PLOT_EXPORT_TAB:
+				plotExportPanel.activating();
 				break;
 		}
 	}
