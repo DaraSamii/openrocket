@@ -1,8 +1,7 @@
 package info.openrocket.swing.gui.simulation;
 
 /**
- * The numbers shown while a Monte Carlo analysis runs: time, the estimate of the time left, and the share of the
- * computer in use.
+ * The numbers shown while a Monte Carlo analysis runs: the time and the estimate of the time left.
  */
 final class MonteCarloProgressStatistics {
 	private MonteCarloProgressStatistics() {
@@ -47,18 +46,5 @@ final class MonteCarloProgressStatistics {
 			return -1;
 		}
 		return (completed - 1) * 1000.0 / (elapsedMillis - firstCompletionMillis);
-	}
-
-	/**
-	 * @param cpuNanos processor time that the program used in the interval
-	 * @param wallNanos length of the interval
-	 * @param cores number of processor cores
-	 * @return the share of all processor cores that was in use, from 0 to 1
-	 */
-	static double cpuFraction(long cpuNanos, long wallNanos, int cores) {
-		if (wallNanos <= 0 || cores <= 0) {
-			return 0;
-		}
-		return Math.max(0, Math.min(1, (double) cpuNanos / ((double) wallNanos * cores)));
 	}
 }

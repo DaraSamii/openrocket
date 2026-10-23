@@ -33,13 +33,4 @@ public class MonteCarloProgressStatisticsTest {
 		assertEquals(-1, MonteCarloProgressStatistics.estimateRemainingMillis(4_000, 4_000, 5, 100));
 		assertEquals(-1.0, MonteCarloProgressStatistics.trajectoriesPerSecond(4_000, 4_000, 1), 0);
 	}
-
-	@Test
-	public void testCpuFractionIsTheShareOfAllCores() {
-		// 4 s of processor time in 1 s on 8 cores is half of the computer
-		assertEquals(0.5, MonteCarloProgressStatistics.cpuFraction(4_000_000_000L, 1_000_000_000L, 8), 1e-9);
-		assertEquals(1.0, MonteCarloProgressStatistics.cpuFraction(20_000_000_000L, 1_000_000_000L, 8), 0);
-		assertEquals(0.0, MonteCarloProgressStatistics.cpuFraction(-1, 1_000_000_000L, 8), 0);
-		assertEquals(0.0, MonteCarloProgressStatistics.cpuFraction(1, 0, 8), 0);
-	}
 }
