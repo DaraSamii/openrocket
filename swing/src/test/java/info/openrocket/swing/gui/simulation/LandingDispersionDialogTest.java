@@ -18,6 +18,7 @@ import info.openrocket.core.simulation.montecarlo.MonteCarloDistribution;
 import info.openrocket.core.simulation.montecarlo.MonteCarloParameter;
 import info.openrocket.core.simulation.montecarlo.MonteCarloResult;
 import info.openrocket.core.simulation.montecarlo.MonteCarloSettings;
+import info.openrocket.core.simulation.montecarlo.RecoveryScenario;
 import info.openrocket.core.util.TestRockets;
 import info.openrocket.swing.gui.simulation.LandingDispersionDialog.DistributionComboBox;
 import info.openrocket.swing.util.BaseTestCase;
@@ -58,6 +59,16 @@ public class LandingDispersionDialogTest extends BaseTestCase {
 		MonteCarloSettings changed = settings(303, 8, 0.2);
 		LandingDispersionDialog.persistSettings(simulation, changed);
 		assertSame(changed, simulation.getLandingDispersionSettings());
+	}
+
+	@Test
+	public void testEveryRecoveryScenarioHasALabelAndATooltip() {
+		ResourceBundle bundle = ResourceBundle.getBundle("l10n.messages", Locale.ROOT);
+		for (RecoveryScenario.Kind kind : RecoveryScenario.Kind.values()) {
+			assertFalse(bundle.getString("LandingDispersionDlg.scenario." + kind.name()).isBlank(), kind.name());
+			assertFalse(bundle.getString("LandingDispersionDlg.scenario." + kind.name() + ".ttip").isBlank(),
+					kind.name());
+		}
 	}
 
 	/**

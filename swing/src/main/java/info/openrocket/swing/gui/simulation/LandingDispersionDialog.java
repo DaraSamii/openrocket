@@ -11,7 +11,9 @@ import java.awt.event.WindowEvent;
 import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,6 +23,7 @@ import javax.swing.BorderFactory;
 import javax.swing.DefaultCellEditor;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -49,6 +52,7 @@ import info.openrocket.core.simulation.montecarlo.MonteCarloParameter;
 import info.openrocket.core.simulation.montecarlo.MonteCarloResult;
 import info.openrocket.core.simulation.montecarlo.MonteCarloSettings;
 import info.openrocket.core.simulation.montecarlo.MonteCarloSimulationRunner;
+import info.openrocket.core.simulation.montecarlo.RecoveryScenario;
 import info.openrocket.core.startup.Application;
 import info.openrocket.core.unit.Unit;
 import info.openrocket.core.unit.UnitGroup;
@@ -73,6 +77,7 @@ public final class LandingDispersionDialog extends JDialog {
 	private final JTable parameterTable;
 	private final JSpinner runCountSpinner;
 	private final JTextField seedField;
+	private final Map<RecoveryScenario, JCheckBox> scenarioBoxes = new LinkedHashMap<>();
 	private final JTextArea parameterDescription;
 	private final JPanel cards;
 	private final CardLayout cardLayout;
@@ -240,7 +245,46 @@ public final class LandingDispersionDialog extends JDialog {
 		});
 		spreadActions.add(allFixedButton);
 		panel.add(spreadActions, "growx");
+
+		// Recovery scenarios
+		List<RecoveryScenario> scenarios = RecoveryScenario.available(simulation.getRocket(),
+				simulation.getFlightConfigurationId());
+		if (!scenarios.isEmpty()) {
+			JLabel scenariosLabel = new JLabel(trans.get("LandingDispersionDlg.lbl.scenarios"));
+			scenariosLabel.setToolTipText(trans.get("LandingDispersionDlg.lbl.scenarios.ttip"));
+			panel.add(scenariosLabel, "newline, spanx");
+			panel.add(createScenarioPanel(scenarios), "newline, spanx, gapleft indent");
+		}
 		return panel;
+	}
+
+	/**
+	 * @return one row per stage, with a check box for each of its recovery scenarios
+	 */
+	private JPanel createScenarioPanel(List<RecoveryScenario> scenarios) {
+		JPanel panel = new JPanel(new MigLayout("ins 0"));
+		String stageId = null;
+		for (RecoveryScenario scenario : scenarios) {
+			if (!scenario.stageId().equals(stageId)) {
+				panel.add(new JLabel(scenario.stageName() + ":"), stageId == null ? "" : "newline");
+				stageId = scenario.stageId();
+			}
+			JCheckBox box = new JCheckBox(trans.get("LandingDispersionDlg.scenario." + scenario.kind().name()));
+			box.setToolTipText(trans.get("LandingDispersionDlg.scenario." + scenario.kind().name() + ".ttip"));
+			scenarioBoxes.put(scenario, box);
+			panel.add(box);
+		}
+		return panel;
+	}
+
+	private List<RecoveryScenario> selectedScenarios() {
+		List<RecoveryScenario> selected = new ArrayList<>();
+		scenarioBoxes.forEach((scenario, box) -> {
+			if (box.isSelected()) {
+				selected.add(scenario);
+			}
+		});
+		return selected;
 	}
 
 	/**
@@ -357,8 +401,9 @@ public final class LandingDispersionDialog extends JDialog {
 		saveSettings(settings);
 
 		progressBar.setValue(0);
+		List<RecoveryScenario> scenarios = selectedScenarios();
 		progressLabel.setText(String.format(trans.get("LandingDispersionDlg.lbl.progress"), 0,
-				settings.getRunCount() + 1));
+				(settings.getRunCount() + 1) * (scenarios.size() + 1)));
 		cardLayout.show(cards, CARD_PROGRESS);
 		buttonCardLayout.show(buttonCards, CARD_PROGRESS);
 		runButton.setVisible(false);
@@ -368,7 +413,7 @@ public final class LandingDispersionDialog extends JDialog {
 		cancelButton.setEnabled(true);
 		getRootPane().setDefaultButton(cancelButton);
 
-		worker = new AnalysisWorker(settings);
+		worker = new AnalysisWorker(settings, scenarios);
 		worker.execute();
 	}
 
@@ -599,15 +644,17 @@ public final class LandingDispersionDialog extends JDialog {
 
 	private final class AnalysisWorker extends SwingWorker<MonteCarloResult, ProgressState> {
 		private final MonteCarloSettings settings;
+		private final List<RecoveryScenario> scenarios;
 
-		private AnalysisWorker(MonteCarloSettings settings) {
+		private AnalysisWorker(MonteCarloSettings settings, List<RecoveryScenario> scenarios) {
 			this.settings = settings;
+			this.scenarios = scenarios;
 		}
 
 		@Override
 		protected MonteCarloResult doInBackground() {
 			MonteCarloSimulationRunner runner = new MonteCarloSimulationRunner();
-			return runner.run(simulation, settings, (completed, total) -> {
+			return runner.runWithScenarios(simulation, settings, scenarios, (completed, total) -> {
 				setProgress((int) Math.round(100.0 * completed / total));
 				publish(new ProgressState(completed, total));
 			});
