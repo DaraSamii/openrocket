@@ -1,14 +1,28 @@
 package info.openrocket.swing.gui.main;
 
+import java.awt.AWTEvent;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsEnvironment;
 import java.awt.RenderingHints;
 import java.awt.SplashScreen;
+import java.awt.Toolkit;
+import java.awt.event.AWTEventListener;
+import java.awt.event.WindowEvent;
 import java.awt.font.GlyphVector;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+
+import javax.imageio.ImageIO;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JWindow;
 
 import info.openrocket.core.util.BuildProperties;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 /**
  * Helper methods for manipulating the Java runtime splash screen.
@@ -28,6 +42,9 @@ public class Splash {
 	private static final int VERSION_POSITION_Y = 150;
 	private static final Font VERSION_FONT = new Font(Font.SANS_SERIF, Font.PLAIN, 14);
 	private static final Color VERSION_COLOR = Color.WHITE;
+
+	/** The splash screen shown on the startup screen instead of the Java one, or null */
+	private static JWindow moved = null;
 	
 	
 	/**
@@ -61,6 +78,61 @@ public class Splash {
 	
 	
 	
+	/**
+	 * Java shows the splash screen before OpenRocket runs, centered on the whole desktop, so with several screens it
+	 * can be between two of them. If so, the same splash screen is shown on the screen that OpenRocket opens on
+	 * instead. Like the Java splash screen, it closes when the first other window opens.
+	 */
+	public static void moveToStartupScreen() {
+		SplashScreen s = getSplashScreen();
+		if (s == null || GraphicsEnvironment.isHeadless()) {
+			return;
+		}
+		GraphicsConfiguration screen = WindowLocationUtil.getStartupScreen();
+		if (screen.getBounds().contains(s.getBounds())) {
+			return;
+		}
+		BufferedImage image;
+		try {
+			image = ImageIO.read(s.getImageURL());
+		} catch (IOException e) {
+			return;
+		}
+		if (image == null) {
+			return;
+		}
+		Graphics2D g2 = image.createGraphics();
+		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		drawVersionNumber(g2);
+		g2.dispose();
+
+		JWindow window = new JWindow(screen);
+		window.setContentPane(new JLabel(new ImageIcon(image)));
+		window.pack();
+		WindowLocationUtil.centerOnScreen(window, screen);
+		s.close();
+		window.setVisible(true);
+		moved = window;
+
+		Toolkit.getDefaultToolkit().addAWTEventListener(new AWTEventListener() {
+			@Override
+			public void eventDispatched(AWTEvent event) {
+				if (event.getID() == WindowEvent.WINDOW_OPENED && event.getSource() != moved) {
+					Toolkit.getDefaultToolkit().removeAWTEventListener(this);
+					moved.dispose();
+					moved = null;
+				}
+			}
+		}, AWTEvent.WINDOW_EVENT_MASK);
+	}
+
+	/**
+	 * @return whether a splash screen, the Java one or the one moved to the startup screen, is showing
+	 */
+	public static boolean isShowing() {
+		return getSplashScreen() != null || (moved != null && moved.isShowing());
+	}
+
 	private static void drawVersionNumber(Graphics2D g2) {
 		String text = "Version " + BuildProperties.getVersion();
 		GlyphVector gv = VERSION_FONT.createGlyphVector(g2.getFontRenderContext(), text);

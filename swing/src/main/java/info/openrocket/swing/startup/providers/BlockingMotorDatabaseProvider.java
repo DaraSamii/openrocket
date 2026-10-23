@@ -1,6 +1,5 @@
 package info.openrocket.swing.startup.providers;
 
-import java.awt.SplashScreen;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -74,8 +73,7 @@ public class BlockingMotorDatabaseProvider implements Provider<ThrustCurveMotorS
 			loader.startLoading();
 		}
 		
-		SplashScreen splash = Splash.getSplashScreen();
-		if (splash == null || !splash.isVisible()) {
+		if (!Splash.isShowing()) {
 			
 			log.info("Motor database not loaded yet, displaying dialog");
 			

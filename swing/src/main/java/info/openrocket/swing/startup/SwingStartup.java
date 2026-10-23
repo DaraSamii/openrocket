@@ -211,6 +211,9 @@ public class SwingStartup {
 		Injector injector = Guice.createInjector(guiModule, pluginModule);
 		Application.setInjector(injector);
 
+		// Now that the preferences tell where the main window was, show the splash screen on that screen
+		Splash.moveToStartupScreen();
+
 		// Set the look-and-feel
 		log.info("Setting LAF");
 		String cmdLAF = System.getProperty("openrocket.laf");

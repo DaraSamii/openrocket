@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -38,5 +39,23 @@ public class WindowLocationUtilTest {
 		Point location = WindowLocationUtil.centeredLocation(main, new Dimension(3000, 2000), SECOND_SCREEN);
 
 		assertEquals(new Point(1920, 0), location);
+	}
+
+	/** Two stacked screens like a monitor above a laptop: the middle of the whole desktop is on their border */
+	private static final List<Rectangle> STACKED = List.of(new Rectangle(0, 0, 3968, 1674),
+			new Rectangle(457, 1674, 3200, 2000));
+
+	@Test
+	public void testOpenRocketStartsOnTheScreenWhereTheMainWindowWasLast() {
+		assertEquals(1, WindowLocationUtil.chooseStartupScreen(STACKED, new Point(1100, 2200), new Point(100, 100)));
+		assertEquals(0, WindowLocationUtil.chooseStartupScreen(STACKED, new Point(300, 40), new Point(1000, 3000)));
+	}
+
+	@Test
+	public void testWithoutALastPositionOpenRocketStartsOnTheScreenWithThePointer() {
+		assertEquals(1, WindowLocationUtil.chooseStartupScreen(STACKED, null, new Point(1000, 3000)));
+		// A last position on a screen that is gone does not count
+		assertEquals(0, WindowLocationUtil.chooseStartupScreen(STACKED, new Point(5000, 100), new Point(200, 200)));
+		assertEquals(-1, WindowLocationUtil.chooseStartupScreen(STACKED, null, null));
 	}
 }

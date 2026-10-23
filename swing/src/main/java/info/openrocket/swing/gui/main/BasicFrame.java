@@ -130,6 +130,7 @@ import info.openrocket.swing.gui.scalefigure.RocketPanel;
 import info.openrocket.swing.gui.util.DummyFrameMenuOSX;
 import info.openrocket.swing.gui.util.FileHelper;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.util.Icons;
 import info.openrocket.swing.gui.util.OpenFileWorker;
 import info.openrocket.swing.gui.util.SaveFileWorker;
@@ -332,16 +333,17 @@ private static final Translator trans = Application.getTranslator();
 		this.pack();
 
 
-		// Set initial window size
-		Dimension size = Toolkit.getDefaultToolkit().getScreenSize();
-		size.width = size.width * 9 / 10;
-		size.height = size.height * 9 / 10;
-		this.setSize(size);
+		// Set initial window size, from the screen OpenRocket starts on: with several screens, the size of the whole
+		// desktop would span them
+		GraphicsConfiguration startupScreen = WindowLocationUtil.getStartupScreen();
+		Rectangle screenArea = WindowLocationUtil.usableBounds(startupScreen);
+		this.setSize(screenArea.width * 9 / 10, screenArea.height * 9 / 10);
 
 		// Remember changed size
 		GUIUtil.rememberWindowSize(this);
 
-		this.setLocationByPlatform(true);
+		// Open on the startup screen, where the splash screen was, unless the main window was somewhere else last time
+		WindowLocationUtil.centerOnScreen(this, startupScreen);
 		GUIUtil.rememberWindowPosition(this);
 		positionRelativeToExistingFrames();
 

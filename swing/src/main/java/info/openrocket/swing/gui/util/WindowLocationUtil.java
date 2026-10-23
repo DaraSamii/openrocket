@@ -4,12 +4,20 @@ import java.awt.Dimension;
 import java.awt.Frame;
 import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
 import java.awt.KeyboardFocusManager;
+import java.awt.MouseInfo;
 import java.awt.Point;
+import java.awt.PointerInfo;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.Window;
+import java.util.ArrayList;
+import java.util.List;
+
+import info.openrocket.core.startup.Application;
+import info.openrocket.swing.gui.main.BasicFrame;
 
 /**
  * Helper class for setting the location of a Swing window. E.g. to check when the window is outside the screen and
@@ -89,16 +97,78 @@ public abstract class WindowLocationUtil {
     public static void centerOnMainWindow(Window window) {
         Window main = getMainWindow(window);
         if (main == null) {
-            window.setLocationRelativeTo(null);
+            // Before the main window opens, use the screen it will open on, not the middle of all the screens
+            centerOnScreen(window, getStartupScreen());
             return;
         }
-        GraphicsConfiguration configuration = main.getGraphicsConfiguration();
-        Rectangle screen = configuration.getBounds();
-        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(configuration);
-        Rectangle usable = new Rectangle(screen.x + insets.left, screen.y + insets.top,
-                screen.width - insets.left - insets.right, screen.height - insets.top - insets.bottom);
         window.setLocationByPlatform(false);
-        window.setLocation(centeredLocation(main.getBounds(), window.getSize(), usable));
+        window.setLocation(centeredLocation(main.getBounds(), window.getSize(),
+                usableBounds(main.getGraphicsConfiguration())));
+    }
+
+    /**
+     * Centers a window on the usable part of a screen, without the task bars.
+     * @param window window to place
+     * @param screen the screen
+     */
+    public static void centerOnScreen(Window window, GraphicsConfiguration screen) {
+        Rectangle usable = usableBounds(screen);
+        window.setLocationByPlatform(false);
+        window.setLocation(centeredLocation(usable, window.getSize(), usable));
+    }
+
+    /**
+     * @return the part of the screen that windows can use, without the task bars
+     */
+    public static Rectangle usableBounds(GraphicsConfiguration screen) {
+        Rectangle bounds = screen.getBounds();
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(screen);
+        return new Rectangle(bounds.x + insets.left, bounds.y + insets.top,
+                bounds.width - insets.left - insets.right, bounds.height - insets.top - insets.bottom);
+    }
+
+    /**
+     * The screen that OpenRocket starts on, for the splash screen, the startup dialogs and the main window: the screen
+     * where the main window was last, or else the screen with the mouse pointer, where OpenRocket was started from.
+     * @return the startup screen
+     */
+    public static GraphicsConfiguration getStartupScreen() {
+        GraphicsDevice[] devices = GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices();
+        List<Rectangle> screens = new ArrayList<>();
+        for (GraphicsDevice device : devices) {
+            screens.add(device.getDefaultConfiguration().getBounds());
+        }
+        Point lastMainWindow = null;
+        try {
+            lastMainWindow = ((SwingPreferences) Application.getPreferences()).getWindowPosition(BasicFrame.class);
+        } catch (RuntimeException e) {
+            // The preferences are not available yet very early in the startup
+        }
+        PointerInfo pointerInfo = MouseInfo.getPointerInfo();
+        Point pointer = pointerInfo == null ? null : pointerInfo.getLocation();
+        int index = chooseStartupScreen(screens, lastMainWindow, pointer);
+        return index >= 0 ? devices[index].getDefaultConfiguration()
+                : GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+    }
+
+    /**
+     * @param screens bounds of the screens
+     * @param lastMainWindow where the main window was last, or null
+     * @param pointer where the mouse pointer is, or null
+     * @return the index of the screen that contains the last main window position, or else the pointer; -1 if none
+     */
+    static int chooseStartupScreen(List<Rectangle> screens, Point lastMainWindow, Point pointer) {
+        for (Point point : new Point[]{lastMainWindow, pointer}) {
+            if (point == null) {
+                continue;
+            }
+            for (int i = 0; i < screens.size(); i++) {
+                if (screens.get(i).contains(point)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     /**
