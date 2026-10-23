@@ -31,6 +31,7 @@ import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.Icon;
@@ -80,6 +81,7 @@ import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.SeriesRenderingOrder;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.chart.ui.Layer;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
 import org.jfree.chart.labels.StandardXYToolTipGenerator;
@@ -153,6 +155,8 @@ public final class LandingDispersionResultsDialog extends JDialog {
 	private final RunTableModel runTableModel;
 	private final JTabbedPane resultTabs;
 	private final MonteCarloMetricsPanel metricsPanel;
+	private final MapTileAnnotation map;
+	private final JCheckBox showMapBox = new JCheckBox(trans.get("LandingDispersionResultsDlg.chart.showMap"));
 	private final Runnable themeChangeListener;
 	private Point panAnchor;
 	private int highlightedSeries = -1;
@@ -160,7 +164,12 @@ public final class LandingDispersionResultsDialog extends JDialog {
 	private double lastPlotWidth;
 	private double lastPlotHeight;
 
-	public LandingDispersionResultsDialog(Window owner, String simulationName, MonteCarloResult result) {
+	/**
+	 * @param latitude latitude of the launch site, in degrees, for the map
+	 * @param longitude longitude of the launch site, in degrees, for the map
+	 */
+	public LandingDispersionResultsDialog(Window owner, String simulationName, MonteCarloResult result,
+			double latitude, double longitude) {
 		super(owner, String.format(trans.get("LandingDispersionResultsDlg.title"), simulationName),
 				ModalityType.APPLICATION_MODAL);
 		this.simulationName = simulationName;
@@ -168,6 +177,7 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		this.distanceUnit = UnitGroup.UNITS_DISTANCE.getDefaultUnit();
 		this.bodyCombo = new JComboBox<>(result.getLandingBodies().toArray(new LandingBody[0]));
 		this.chart = createChart();
+		this.map = new MapTileAnnotation(latitude, longitude, distanceUnit, chart::fireChartChanged);
 		this.chartPanel = createChartPanel();
 		this.summaryArea = createSummaryArea();
 		this.runTableModel = new RunTableModel(result, distanceUnit);
@@ -338,7 +348,14 @@ public final class LandingDispersionResultsDialog extends JDialog {
 	}
 
 	private JPanel createChartControls() {
-		JPanel controls = new JPanel(new MigLayout("ins 0", "[grow][]0[]0[]"));
+		JPanel controls = new JPanel(new MigLayout("ins 0", "[][grow][]0[]0[]"));
+		showMapBox.setToolTipText(trans.get("LandingDispersionResultsDlg.chart.showMap.ttip"));
+		showMapBox.addActionListener(event -> {
+			if (chart.getXYPlot().getRenderer() instanceof XYLineAndShapeRenderer renderer) {
+				setRenderer(renderer);
+			}
+		});
+		controls.add(showMapBox);
 		controls.add(new JLabel(trans.get("LandingDispersionResultsDlg.chart.controls")), "growx");
 		controls.add(createChartButton(Icons.ZOOM_IN, "LandingDispersionResultsDlg.chart.zoomIn",
 				() -> zoomChart(0.8)));
@@ -483,7 +500,7 @@ public final class LandingDispersionResultsDialog extends JDialog {
 				boolean hasNominal = dataset.getSeriesCount() > 1 && dataset.getItemCount(1) > 0;
 				boolean hasStatistics = dataset.getSeriesCount() > 2 && dataset.getItemCount(2) > 0;
 				highlightedSeries = -1;
-				chart.getXYPlot().setRenderer(createRenderer(hasNominal, hasStatistics));
+				setRenderer(createRenderer(hasNominal, hasStatistics));
 			}
 			chartPanel.setBorder(BorderFactory.createLineBorder(borderColor));
 			chartPanel.repaint();
@@ -551,11 +568,22 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		XYPlot plot = chart.getXYPlot();
 		plot.setDataset(dataset);
 		highlightedSeries = -1;
-		plot.setRenderer(createRenderer(nominal != null, statistics != null));
+		setRenderer(createRenderer(nominal != null, statistics != null));
 		chart.setTitle(chartTitle());
 		chartSubtitle.setText(chartSubtitle(body, points.size(), result.getSettings()));
 		chartFitPending = true;
 		SwingUtilities.invokeLater(this::fitChartToData);
+	}
+
+	/**
+	 * Use the renderer, with the map behind the data when it is shown.
+	 */
+	private void setRenderer(XYLineAndShapeRenderer renderer) {
+		renderer.removeAnnotation(map);
+		if (showMapBox.isSelected()) {
+			renderer.addAnnotation(map, Layer.BACKGROUND);
+		}
+		chart.getXYPlot().setRenderer(renderer);
 	}
 
 	static void addEllipseSeries(XYSeriesCollection dataset, String name,
