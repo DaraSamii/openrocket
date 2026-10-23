@@ -908,7 +908,7 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		showCGCP.setText(trans.get("RocketPanel.checkbox.ShowCGCP"));
 		showCGCP.setSelected(true);
 		showCGCP.setToolTipText(trans.get("RocketPanel.checkbox.ShowCGCP.ttip"));
-		ribbon.add(showCGCP, "cell 4 0, gapleft para, split 4");
+		ribbon.add(showCGCP, "cell 4 0, gapleft para");
 
 		// Mach angle lines
 		final JSpinner machSpinner = new JSpinner(new SpinnerNumberModel(2.0, 1.01, 50.0, 0.1));
@@ -928,9 +928,10 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		};
 		showMachAngles.addActionListener(machListener);
 		machSpinner.addChangeListener(e -> machListener.actionPerformed(null));
-		ribbon.add(showMachAngles, "cell 4 0, gapleft para");
-		ribbon.add(machSpinner, "cell 4 0, wmin 55lp");
-		ribbon.add(machAngleLabel, "cell 4 0");
+		// The Mach angle goes under the check box
+		ribbon.add(showMachAngles, "cell 5 0, gapleft para, split 2");
+		ribbon.add(machSpinner, "cell 5 0, wmin 55lp");
+		ribbon.add(machAngleLabel, "cell 5 1, gapleft para");
 
 		showCGCP.addActionListener(new ActionListener() {
 			@Override
@@ -956,7 +957,7 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		if (caliperManager != null) {
 			caliperRibbonPanel = buildCaliperRibbonPanel();
 			caliperRibbonPanel.setVisible(false);
-			ribbon.add(caliperRibbonPanel, "cell 5 0, spany 2, gapleft para, gapright para, aligny center");
+			ribbon.add(caliperRibbonPanel, "cell 6 0, spany 2, gapleft para, gapright para, aligny center");
 
 			showCalipersButton.addActionListener(new ActionListener() {
 				@Override
@@ -975,21 +976,21 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		Dimension d_sep = sep.getPreferredSize();
 		d_sep.height = (int) (0.7 * ribbon.getPreferredSize().height);
 		sep.setPreferredSize(d_sep);
-		ribbon.add(sep, "cell 6 0, spany 2, gapright para");
+		ribbon.add(sep, "cell 7 0, spany 2, gapright para");
 
 		// Stage selector
 		StageSelector stageSelector = new StageSelector(rkt);
 		rkt.addChangeListener(stageSelector);
-		ribbon.add(new JLabel(trans.get("RocketPanel.lbl.Stages")), "cell 7 0, pushx");
-		ribbon.add(stageSelector, "cell 7 1, pushx");
+		ribbon.add(new JLabel(trans.get("RocketPanel.lbl.Stages")), "cell 8 0, pushx");
+		ribbon.add(stageSelector, "cell 8 1, pushx");
 
 		// Flight configuration selector
 		//// Flight configuration:
 		JLabel label = new JLabel(trans.get("RocketPanel.lbl.Flightcfg"));
-		ribbon.add(label, "cell 8 0");
+		ribbon.add(label, "cell 9 0");
 
 		final ConfigurationComboBox configComboBox = new ConfigurationComboBox(rkt);
-		ribbon.add(configComboBox, "cell 8 1, width 16%, wmin 100");
+		ribbon.add(configComboBox, "cell 9 1, width 16%, wmin 100");
 
 		SingleRowScrollPane ribbonScroll = new SingleRowScrollPane(ribbon, this::revalidate);
 		add(ribbonScroll, "growx, span, wrap");
