@@ -110,7 +110,7 @@ program window.
 For supersonic flight, check :guilabel:`Mach angles` above the rocket view and enter a Mach number. The side and top
 views then show dotted lines at the Mach angle, :math:`\mu = \sin^{-1}(1/M)`: the Mach cone from the nose tip, and a
 line outwards from the front of the root of each fin, where its leading edge meets the body tube. With them you can see
-whether the fins are inside the Mach cone of the nose. Nothing is shown at or below Mach 1, where there is no Mach angle.
+whether the fins are inside the Mach cone of the nose. Nothing is shown at or below Mach 1, where there is no Mach angle. The Mach angle itself is shown next to the Mach number, for example :math:`\mu = 30.0°` at Mach 2.
 
 Motor Tab
 ^^^^^^^^^

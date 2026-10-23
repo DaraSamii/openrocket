@@ -105,4 +105,14 @@ class MachAngleLinesTest extends BaseTestCase {
 		assertEquals(y, line[1], EPSILON);
 		assertEquals(slope, (line[3] - line[1]) / (line[2] - line[0]), EPSILON);
 	}
+
+	@Test
+	void formatsTheMachAngleInDegrees() {
+		// asin(1/M): Mach 2 is 30 degrees, Mach sqrt(2) is 45 degrees, Mach 1.01 is almost 90 degrees
+		assertEquals("30.0\u00B0", MachAngleLines.formatAngle(2));
+		assertEquals("45.0\u00B0", MachAngleLines.formatAngle(Math.sqrt(2)));
+		assertEquals("81.9\u00B0", MachAngleLines.formatAngle(1.01));
+		assertEquals("", MachAngleLines.formatAngle(1.0));
+		assertEquals("", MachAngleLines.formatAngle(Double.NaN));
+	}
 }

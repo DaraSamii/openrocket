@@ -37,6 +37,14 @@ public class MachAngleLines implements FigureElement {
 	}
 
 	/**
+	 * @return the Mach angle in degrees as text, like "30.0°", or an empty text at or below Mach 1
+	 */
+	public static String formatAngle(double mach) {
+		double angle = machAngle(mach);
+		return Double.isNaN(angle) ? "" : String.format("%.1f\u00B0", Math.toDegrees(angle));
+	}
+
+	/**
 	 * Calculates the lines.
 	 *
 	 * @param configuration the flight configuration that is shown

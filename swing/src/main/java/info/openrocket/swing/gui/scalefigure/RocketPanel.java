@@ -908,7 +908,7 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		showCGCP.setText(trans.get("RocketPanel.checkbox.ShowCGCP"));
 		showCGCP.setSelected(true);
 		showCGCP.setToolTipText(trans.get("RocketPanel.checkbox.ShowCGCP.ttip"));
-		ribbon.add(showCGCP, "cell 4 0, gapleft para, split 3");
+		ribbon.add(showCGCP, "cell 4 0, gapleft para, split 4");
 
 		// Mach angle lines
 		final JSpinner machSpinner = new JSpinner(new SpinnerNumberModel(2.0, 1.01, 50.0, 0.1));
@@ -916,9 +916,13 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		machSpinner.setEnabled(false);
 		final JCheckBox showMachAngles = new JCheckBox(trans.get("RocketPanel.checkbox.MachAngles"));
 		showMachAngles.setToolTipText(trans.get("RocketPanel.checkbox.MachAngles.ttip"));
+		final JLabel machAngleLabel = new JLabel();
+		machAngleLabel.setToolTipText(trans.get("RocketPanel.lbl.MachAngle.ttip"));
 		ActionListener machListener = e -> {
 			machSpinner.setEnabled(showMachAngles.isSelected());
 			machAngleMach = showMachAngles.isSelected() ? (Double) machSpinner.getValue() : Double.NaN;
+			String angle = MachAngleLines.formatAngle(machAngleMach);
+			machAngleLabel.setText(angle.isEmpty() ? "" : "\u03BC = " + angle);
 			updateExtras();
 			updateFigures();
 		};
@@ -926,6 +930,7 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 		machSpinner.addChangeListener(e -> machListener.actionPerformed(null));
 		ribbon.add(showMachAngles, "cell 4 0, gapleft para");
 		ribbon.add(machSpinner, "cell 4 0, wmin 55lp");
+		ribbon.add(machAngleLabel, "cell 4 0");
 
 		showCGCP.addActionListener(new ActionListener() {
 			@Override
