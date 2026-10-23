@@ -1,7 +1,9 @@
 package info.openrocket.core.simulation.montecarlo;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorCompletionService;
@@ -60,6 +62,32 @@ public final class MonteCarloSimulationRunner {
 	public MonteCarloResult run(Simulation simulation, MonteCarloSettings settings,
 			MonteCarloProgressListener progressListener) {
 		return run(simulation, settings, null, progressListener);
+	}
+
+	/**
+	 * Run a complete analysis with the designed recovery, then fly the same samples with each recovery scenario.
+	 *
+	 * @param simulation simulation to disperse; neither it nor its rocket is modified
+	 * @param settings analysis configuration
+	 * @param scenarios recovery scenarios to fly
+	 * @param progressListener receives monotonic progress updates over all analyses on the calling thread
+	 * @return the analysis with the designed recovery, with the scenario results attached
+	 */
+	public MonteCarloResult runWithScenarios(Simulation simulation, MonteCarloSettings settings,
+			List<RecoveryScenario> scenarios, MonteCarloProgressListener progressListener) {
+		long start = System.currentTimeMillis();
+		int trajectories = settings.getRunCount() + 1;
+		int total = trajectories * (scenarios.size() + 1);
+		MonteCarloResult designed = run(simulation, settings, null,
+				(completed, ignored) -> progressListener.onProgress(completed, total));
+		Map<RecoveryScenario, MonteCarloResult> scenarioResults = new LinkedHashMap<>();
+		for (RecoveryScenario scenario : scenarios) {
+			int done = trajectories * (scenarioResults.size() + 1);
+			scenarioResults.put(scenario, run(simulation, settings, scenario,
+					(completed, ignored) -> progressListener.onProgress(done + completed, total)));
+		}
+		return new MonteCarloResult(settings, designed.getNominalResult(), designed.getRunResults(),
+				System.currentTimeMillis() - start, scenarioResults);
 	}
 
 	/**

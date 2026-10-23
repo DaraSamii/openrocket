@@ -1,6 +1,7 @@
 package info.openrocket.core.simulation.montecarlo;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,13 +14,24 @@ public final class MonteCarloResult {
 	private final MonteCarloRunResult nominalResult;
 	private final List<MonteCarloRunResult> runResults;
 	private final long elapsedMillis;
+	private final Map<RecoveryScenario, MonteCarloResult> scenarioResults;
 
 	public MonteCarloResult(MonteCarloSettings settings, MonteCarloRunResult nominalResult,
 			List<MonteCarloRunResult> runResults, long elapsedMillis) {
+		this(settings, nominalResult, runResults, elapsedMillis, Map.of());
+	}
+
+	/**
+	 * @param scenarioResults results of the same samples flown with each recovery scenario, in the order to show them
+	 */
+	public MonteCarloResult(MonteCarloSettings settings, MonteCarloRunResult nominalResult,
+			List<MonteCarloRunResult> runResults, long elapsedMillis,
+			Map<RecoveryScenario, MonteCarloResult> scenarioResults) {
 		this.settings = settings;
 		this.nominalResult = nominalResult;
 		this.runResults = List.copyOf(runResults);
 		this.elapsedMillis = elapsedMillis;
+		this.scenarioResults = Collections.unmodifiableMap(new LinkedHashMap<>(scenarioResults));
 	}
 
 	public MonteCarloSettings getSettings() {
@@ -36,6 +48,13 @@ public final class MonteCarloResult {
 
 	public long getElapsedMillis() {
 		return elapsedMillis;
+	}
+
+	/**
+	 * @return the results of the same samples flown with each recovery scenario, empty if none was flown
+	 */
+	public Map<RecoveryScenario, MonteCarloResult> getScenarioResults() {
+		return scenarioResults;
 	}
 
 	/**

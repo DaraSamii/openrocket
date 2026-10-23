@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -156,5 +157,25 @@ public class RecoveryScenarioTest extends BaseTestCase {
 		assertEquals(List.of(Kind.BALLISTIC, Kind.DROGUE_ONLY, Kind.MAIN_ONLY, Kind.MAIN_AT_APOGEE),
 				RecoveryScenario.available(source.getRocket(), TestRockets.TEST_FCID_0).stream()
 						.map(RecoveryScenario::kind).toList());
+	}
+
+	@Test
+	public void testRunWithScenariosAttachesEachScenarioAndCountsProgressOverAll() {
+		Simulation source = dualDeployment();
+		RecoveryScenario ballistic = RecoveryScenario.available(source.getRocket(), TestRockets.TEST_FCID_0).get(0);
+		MonteCarloSettings settings = MonteCarloSettings.builder().runCount(2).seed(97531).threadCount(1).build();
+		List<Integer> progress = new ArrayList<>();
+
+		MonteCarloResult result = new MonteCarloSimulationRunner().runWithScenarios(source, settings,
+				List.of(ballistic), (completed, total) -> {
+					assertEquals(6, total);
+					progress.add(completed);
+				});
+
+		assertEquals(List.of(1, 2, 3, 4, 5, 6), progress);
+		assertEquals(List.of(ballistic), List.copyOf(result.getScenarioResults().keySet()));
+		assertEquals(result.getNominalResult().sample().getSimulationSeed(),
+				result.getScenarioResults().get(ballistic).getNominalResult().sample().getSimulationSeed());
+		assertEquals(2, result.getRunResults().size());
 	}
 }
