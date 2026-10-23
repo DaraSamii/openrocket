@@ -18,6 +18,7 @@ import javax.swing.WindowConstants;
 import net.miginfocom.swing.MigLayout;
 import info.openrocket.swing.gui.dialogs.motor.thrustcurve.ThrustCurveMotorSelectionPanel;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.core.l10n.Translator;
 import info.openrocket.core.motor.Motor;
 import info.openrocket.core.rocketcomponent.FlightConfigurationId;
@@ -74,7 +75,7 @@ public class MotorChooserDialog extends JDialog implements CloseableDialog {
 		
 		this.setModal(true);
 		this.pack();
-		this.setLocationByPlatform(true);
+		WindowLocationUtil.centerOnMainWindow(this);
 		Action closeAction = new AbstractAction() {
 			@Override
 			public void actionPerformed(ActionEvent event) {

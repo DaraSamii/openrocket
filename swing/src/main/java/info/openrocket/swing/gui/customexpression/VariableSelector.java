@@ -28,6 +28,7 @@ import net.miginfocom.swing.MigLayout;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 /**
  * Dialog to select from available custom variables
@@ -137,7 +138,7 @@ public class VariableSelector extends JDialog {
 		this.add(mainPanel);
 		this.validate();
 		this.pack();
-		this.setLocationByPlatform(true);	
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 	
 	private void selectVariable(){

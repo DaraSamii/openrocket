@@ -30,6 +30,7 @@ import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.PreferencesExporter;
 import info.openrocket.swing.gui.util.PreferencesImporter;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.core.l10n.Translator;
 import info.openrocket.core.startup.Application;
 
@@ -178,7 +179,7 @@ public class PreferencesDialog extends JDialog {
 
 		this.setContentPane(panel);
 		pack();
-		this.setLocationRelativeTo(null);
+		WindowLocationUtil.centerOnMainWindow(this);
 
 		this.addWindowListener(new WindowAdapter() {
 			@Override

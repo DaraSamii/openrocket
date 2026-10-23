@@ -62,6 +62,7 @@ import info.openrocket.swing.gui.theme.UITheme;
 import info.openrocket.swing.gui.util.FileHelper;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.widgets.HeaderToolTipTable;
 import info.openrocket.swing.gui.widgets.SaveFileChooser;
 
@@ -256,7 +257,7 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		GUIUtil.setDisposableDialogOptions(this, closeButton);
 		setSize(900, 680);
 		setMinimumSize(new Dimension(700, 520));
-		setLocationRelativeTo(getOwner());
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 
 	private JFreeChart createChart() {

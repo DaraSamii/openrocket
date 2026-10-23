@@ -9,6 +9,7 @@ import info.openrocket.swing.gui.components.ConfigurationComboBox;
 import info.openrocket.swing.gui.components.StyledLabel;
 import info.openrocket.swing.gui.util.ColorConversion;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.theme.UITheme;
 import info.openrocket.core.l10n.Translator;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
@@ -206,8 +207,6 @@ public class SimulationConfigDialog extends JDialog {
 		this.pack();
 		capDialogToScreenBounds();
 
-		this.setLocationByPlatform(true);
-
 		this.windowCloseCancelListener = new WindowAdapter() {
 			@Override
 			public void windowClosed(WindowEvent e) {
@@ -217,9 +216,9 @@ public class SimulationConfigDialog extends JDialog {
 		this.addWindowListener(windowCloseCancelListener);
 
 		GUIUtil.setDisposableDialogOptions(this, null);
-		GUIUtil.rememberWindowPosition(this);
 		GUIUtil.rememberWindowSize(this);
 		capDialogToScreenBounds();
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 
 	/**

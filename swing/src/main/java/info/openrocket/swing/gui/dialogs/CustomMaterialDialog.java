@@ -190,7 +190,6 @@ public class CustomMaterialDialog extends JDialog {
 
 		this.setContentPane(panel);
 		this.pack();
-		this.setLocationByPlatform(true);
 		GUIUtil.setDisposableDialogOptions(this, okButton);
 	}
 	

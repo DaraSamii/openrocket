@@ -37,6 +37,7 @@ import info.openrocket.swing.gui.figure3d.rendering.GpuMemoryProfile;
 import info.openrocket.swing.gui.components.URLLabel;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.theme.UITheme;
 import info.openrocket.swing.logging.LogLevelBufferLogger;
 import info.openrocket.swing.logging.LogLine;
@@ -115,7 +116,7 @@ public class BugReportDialog extends JDialog {
 		this.validate();
 		this.pack();
 		this.pack();
-		this.setLocationRelativeTo(parent);
+		WindowLocationUtil.centerOnMainWindow(this);
 		
 		GUIUtil.setDisposableDialogOptions(this, close);
 	}

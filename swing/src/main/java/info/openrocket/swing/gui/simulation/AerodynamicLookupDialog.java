@@ -10,6 +10,7 @@ import info.openrocket.swing.gui.components.FieldSeparatorComboBox;
 import info.openrocket.swing.gui.theme.UITheme;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.widgets.NativeFileChooser;
 import net.miginfocom.swing.MigLayout;
 
@@ -98,7 +99,7 @@ class AerodynamicLookupDialog extends JDialog {
 
 		setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 		pack();
-		setLocationRelativeTo(owner);
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 
 	private static void initColors() {

@@ -181,7 +181,6 @@ public class SimulationRunDialog extends JDialog {
 
 		this.add(panel);
 		this.setMinimumSize(new Dimension(300, 0));
-		this.setLocationByPlatform(true);
 		this.validate();
 		this.pack();
 

@@ -8,6 +8,7 @@ import info.openrocket.core.l10n.Translator;
 import info.openrocket.core.preferences.ApplicationPreferences;
 import info.openrocket.core.startup.Application;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -367,7 +368,7 @@ public abstract class MotorDatabaseUpdateChecker {
 					cancelAction.run();
 				}
 			});
-			this.setLocationByPlatform(true);
+			WindowLocationUtil.centerOnMainWindow(this);
 			GUIUtil.setWindowIcons(this);
 		}
 

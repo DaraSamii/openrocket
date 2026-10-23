@@ -1,6 +1,14 @@
 package info.openrocket.swing.gui.util;
 
+import java.awt.Dimension;
+import java.awt.Frame;
+import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
+import java.awt.Insets;
+import java.awt.KeyboardFocusManager;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
 import java.awt.Window;
 
 /**
@@ -70,5 +78,69 @@ public abstract class WindowLocationUtil {
                     ((height / 2) - (window.getSize().height / 2)) + parentDevice.getDefaultConfiguration().getBounds().y
             );
         }
+    }
+
+    /**
+     * Centers a window on the main OpenRocket window it belongs to, inside the screen of that main window, so that new
+     * windows always open in the same place, also with several screens. Call it after the window has its final size
+     * and before it is shown. Without a main window, the window is centered on the screen.
+     * @param window window to place
+     */
+    public static void centerOnMainWindow(Window window) {
+        Window main = getMainWindow(window);
+        if (main == null) {
+            window.setLocationRelativeTo(null);
+            return;
+        }
+        GraphicsConfiguration configuration = main.getGraphicsConfiguration();
+        Rectangle screen = configuration.getBounds();
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(configuration);
+        Rectangle usable = new Rectangle(screen.x + insets.left, screen.y + insets.top,
+                screen.width - insets.left - insets.right, screen.height - insets.top - insets.bottom);
+        window.setLocationByPlatform(false);
+        window.setLocation(centeredLocation(main.getBounds(), window.getSize(), usable));
+    }
+
+    /**
+     * @param main bounds of the main window
+     * @param size size of the window to place
+     * @param screen usable area of the main window's screen
+     * @return the location that centers the window on the main window, moved inside the screen where needed
+     */
+    static Point centeredLocation(Rectangle main, Dimension size, Rectangle screen) {
+        int x = main.x + (main.width - size.width) / 2;
+        int y = main.y + (main.height - size.height) / 2;
+        // A window larger than the screen keeps its top-left corner, with the title bar, on the screen
+        x = Math.max(screen.x, Math.min(x, screen.x + screen.width - size.width));
+        y = Math.max(screen.y, Math.min(y, screen.y + screen.height - size.height));
+        return new Point(x, y);
+    }
+
+    /**
+     * @return the top-level window of the window's owners, or else the top-level window of the active window, or else
+     *         the first open frame; null if no such window is showing
+     */
+    private static Window getMainWindow(Window window) {
+        Window owner = topLevel(window.getOwner());
+        if (owner != null && owner.isShowing()) {
+            return owner;
+        }
+        Window active = topLevel(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
+        if (active != null && active != window && active.isShowing()) {
+            return active;
+        }
+        for (Frame frame : Frame.getFrames()) {
+            if (frame != window && frame.isShowing()) {
+                return frame;
+            }
+        }
+        return null;
+    }
+
+    private static Window topLevel(Window window) {
+        while (window != null && window.getOwner() != null) {
+            window = window.getOwner();
+        }
+        return window;
     }
 }

@@ -25,6 +25,7 @@ import info.openrocket.core.util.Chars;
 
 import net.miginfocom.swing.MigLayout;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 @SuppressWarnings("serial")
 public class SlideShowDialog extends JDialog {
@@ -95,8 +96,7 @@ public class SlideShowDialog extends JDialog {
 		GUIUtil.setDisposableDialogOptions(this, nextButton);
 		nextButton.grabFocus();
 		GUIUtil.rememberWindowSize(this);
-		this.setLocationByPlatform(true);
-		GUIUtil.rememberWindowPosition(this);
+		WindowLocationUtil.centerOnMainWindow(this);
 		//		this.setAlwaysOnTop(true);
 	}
 	

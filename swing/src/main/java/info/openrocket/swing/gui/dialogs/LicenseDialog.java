@@ -20,6 +20,7 @@ import info.openrocket.swing.gui.components.DescriptionArea;
 import info.openrocket.swing.gui.components.StyledLabel;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 public class LicenseDialog extends JDialog {
 	private static final Translator trans = Application.getTranslator();
@@ -171,7 +172,7 @@ public class LicenseDialog extends JDialog {
 		this.add(panel);
 		this.setTitle("OpenRocket license");
 		this.pack();
-		this.setLocationRelativeTo(parent);
+		WindowLocationUtil.centerOnMainWindow(this);
 		
 		GUIUtil.setDisposableDialogOptions(this, close);
 	}

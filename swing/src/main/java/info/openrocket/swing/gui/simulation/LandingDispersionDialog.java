@@ -54,6 +54,7 @@ import info.openrocket.core.unit.Unit;
 import info.openrocket.core.unit.UnitGroup;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 import net.miginfocom.swing.MigLayout;
 
@@ -166,7 +167,7 @@ public final class LandingDispersionDialog extends JDialog {
 		pack();
 		setSize(800, 590);
 		setMinimumSize(new Dimension(620, 470));
-		setLocationRelativeTo(owner);
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 
 	private JPanel createSetupPanel() {

@@ -29,6 +29,7 @@ import net.miginfocom.swing.MigLayout;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 @SuppressWarnings("serial")
 public class OperatorSelector extends JDialog {
@@ -156,7 +157,7 @@ public class OperatorSelector extends JDialog {
 		this.add(mainPanel);
 		this.validate();
 		this.pack();
-		this.setLocationByPlatform(true);
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 	
 	private void selectOperator() {

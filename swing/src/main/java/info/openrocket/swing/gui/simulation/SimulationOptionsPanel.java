@@ -803,7 +803,6 @@ class SimulationOptionsPanel extends JPanel {
 						panel.add(close, "right");
 						dialog.add(panel);
 						GUIUtil.setDisposableDialogOptions(dialog, close);
-						dialog.setLocationRelativeTo(SwingUtilities.windowForComponent(SimulationOptionsPanel.this));
 						dialog.setVisible(true);
 					}
 				});

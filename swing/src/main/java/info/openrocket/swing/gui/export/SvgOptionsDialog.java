@@ -31,6 +31,7 @@ import java.awt.event.ActionListener;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 /**
  * Modal dialog wrapping the SVGOptionPanel with component selection tree.
@@ -146,11 +147,10 @@ public class SvgOptionsDialog extends JDialog {
 		if (getWidth() < 600) {
 			setSize(Math.max(600, getWidth()), getHeight());
 		}
-		setLocationRelativeTo(getOwner());
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 
 	public boolean showDialog(JComponent relativeTo) {
-		setLocationRelativeTo(relativeTo);
 		setVisible(true);
 		return confirmed;
 	}

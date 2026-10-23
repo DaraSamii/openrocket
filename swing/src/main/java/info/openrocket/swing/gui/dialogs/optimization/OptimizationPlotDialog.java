@@ -30,6 +30,7 @@ import info.openrocket.core.util.MathUtil;
 import net.miginfocom.swing.MigLayout;
 import info.openrocket.swing.gui.components.StyledLabel;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -124,8 +125,7 @@ public class OptimizationPlotDialog extends JDialog {
 		
 		GUIUtil.setDisposableDialogOptions(this, close);
 		GUIUtil.rememberWindowSize(this);
-		this.setLocationByPlatform(true);
-		GUIUtil.rememberWindowPosition(this);
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 	
 	

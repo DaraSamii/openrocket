@@ -56,6 +56,7 @@ import info.openrocket.swing.gui.adaptors.ColumnTable;
 import info.openrocket.swing.gui.adaptors.ColumnTableModel;
 import info.openrocket.swing.gui.components.SelectableLabel;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.logging.DelegatorLogger;
 import info.openrocket.swing.logging.LogHelper;
 import info.openrocket.swing.logging.LogLevel;
@@ -410,7 +411,7 @@ public class DebugLogDialog extends JDialog {
 		});
 		
 		GUIUtil.setDisposableDialogOptions(this, close);
-		setLocationRelativeTo(parent);
+		WindowLocationUtil.centerOnMainWindow(this);
 		followBox.requestFocus();
 	}
 

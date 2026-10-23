@@ -5,6 +5,7 @@ import info.openrocket.swing.gui.components.StyledLabel;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
 import info.openrocket.swing.gui.util.URLUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,7 +110,7 @@ public class WelcomeDialog extends JDialog {
         this.add(panel);
 
         this.pack();
-        this.setLocationRelativeTo(null);
+        WindowLocationUtil.centerOnMainWindow(this);
         GUIUtil.setDisposableDialogOptions(this, closeBtn);
     }
 }

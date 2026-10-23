@@ -23,6 +23,7 @@ import info.openrocket.core.startup.Application;
 import net.miginfocom.swing.MigLayout;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.GraphicsEditorChooser;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 @SuppressWarnings("serial")
 public class EditDecalDialog extends JDialog {
@@ -157,8 +158,7 @@ public class EditDecalDialog extends JDialog {
 		GUIUtil.installEscapeCloseButtonOperation(this, cancelButton);
 		GUIUtil.setDisposableDialogOptions(this, okButton);
 		GUIUtil.rememberWindowSize(this);
-		this.setLocationByPlatform(true);
-		GUIUtil.rememberWindowPosition(this);
+		WindowLocationUtil.centerOnMainWindow(this);
 		
 	}
 	

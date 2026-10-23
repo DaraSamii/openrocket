@@ -62,6 +62,7 @@ import info.openrocket.swing.gui.util.FileHelper;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.utils.CustomClickCountListener;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -2040,7 +2041,7 @@ public class RocketPanel extends JPanel implements TreeSelectionListener, Change
 
 		dialog.add(panel);
 		dialog.pack();
-		dialog.setLocationRelativeTo(this);
+		WindowLocationUtil.centerOnMainWindow(dialog);
 		dialog.setVisible(true);
 	}
 

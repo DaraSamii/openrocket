@@ -275,9 +275,10 @@ public class GUIUtil {
 		installEscapeCloseOperation(dialog);
 		setWindowIcons(dialog);
 		addModelNullingListener(dialog);
-		dialog.setLocationRelativeTo(dialog.getOwner());
 		dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 		dialog.pack();
+		// Center once the dialog has its size; centering a 0x0 dialog put its corner in the middle of the owner
+		WindowLocationUtil.centerOnMainWindow(dialog);
 		if (defaultButton != null) {
 			setDefaultButton(defaultButton);
 		}

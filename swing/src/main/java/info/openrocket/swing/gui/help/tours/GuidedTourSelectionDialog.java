@@ -119,7 +119,6 @@ public class GuidedTourSelectionDialog extends JDialog {
 		
 		this.add(panel);
 		GUIUtil.setDisposableDialogOptions(this, close);
-		GUIUtil.rememberWindowPosition(this);
 		tourList.setSelectedIndex(0);
 	}
 	

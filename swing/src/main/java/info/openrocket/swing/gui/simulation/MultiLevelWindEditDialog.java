@@ -11,6 +11,7 @@ import info.openrocket.swing.gui.util.FileHelper;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.widgets.NativeFileChooser;
 import net.miginfocom.swing.MigLayout;
 
@@ -209,7 +210,7 @@ public class MultiLevelWindEditDialog extends JDialog {
 
 		setContentPane(contentPane);
 		setSize(900, 500);
-		setLocationRelativeTo(owner);
+		WindowLocationUtil.centerOnMainWindow(this);
 		
 		// Set minimum size to ensure UI doesn't get too cramped
 		setMinimumSize(new Dimension(700, 400));

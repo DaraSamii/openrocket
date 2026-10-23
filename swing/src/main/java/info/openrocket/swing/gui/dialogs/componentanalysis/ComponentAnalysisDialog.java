@@ -95,7 +95,6 @@ public class ComponentAnalysisDialog extends JDialog {
 		});
 		showOkButton(tabbedPane.getSelectedComponent() == plotExportTab);
 
-		this.setLocationByPlatform(true);
 		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		validate();
 		pack();

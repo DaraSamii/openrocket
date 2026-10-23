@@ -21,10 +21,8 @@ import info.openrocket.core.startup.Application;
 import info.openrocket.core.util.BugException;
 import info.openrocket.core.util.Reflection;
 
-import info.openrocket.swing.gui.main.BasicFrame;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.SwingPreferences;
-import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 /**
  * A dialog that contains the configuration elements of one component.
@@ -62,7 +60,6 @@ public class ComponentConfigDialog extends JDialog implements ComponentChangeLis
 		setComponent(document, component);
 
 		GUIUtil.setDisposableDialogOptions(this, null);
-		GUIUtil.rememberWindowPosition(this);
 
 		// overrides common defaults in 'GUIUTIL.setDisposableDialogOptions', above
 		addWindowListener(new WindowAdapter() {
@@ -268,9 +265,6 @@ public class ComponentConfigDialog extends JDialog implements ComponentChangeLis
 
 		dialog = new ComponentConfigDialog(parent, document, component, isNewComponent);
 		dialog.setVisible(true);
-		if (parent instanceof BasicFrame && BasicFrame.getStartupFrame() == parent) {
-			WindowLocationUtil.moveIfOutsideOfParentMonitor(dialog, parent);
-		}
 
 		// Only add a modify undo action if the component is not a new component (because a "Create new component" undo action is already added)
 		if (!isNewComponent) {

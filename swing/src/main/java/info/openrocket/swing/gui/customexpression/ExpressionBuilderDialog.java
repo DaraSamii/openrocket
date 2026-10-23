@@ -23,6 +23,7 @@ import info.openrocket.core.startup.Application;
 
 import net.miginfocom.swing.MigLayout;
 import info.openrocket.swing.gui.util.Icons;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -227,7 +228,7 @@ public class ExpressionBuilderDialog extends JDialog {
 		this.add(mainPanel);
 		this.validate();
 		this.pack();
-		this.setLocationByPlatform(true);
+		WindowLocationUtil.centerOnMainWindow(this);
 		this.updateOK();
 		
 	}

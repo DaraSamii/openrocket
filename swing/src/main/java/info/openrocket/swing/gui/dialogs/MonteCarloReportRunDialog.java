@@ -26,6 +26,7 @@ import info.openrocket.core.startup.Application;
 import info.openrocket.swing.gui.simulation.LandingDispersionAnalysisCache;
 
 import net.miginfocom.swing.MigLayout;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 /** Runs report-only Monte Carlo analyses without blocking the Swing event thread. */
 final class MonteCarloReportRunDialog extends JDialog {
@@ -86,7 +87,7 @@ final class MonteCarloReportRunDialog extends JDialog {
 
 		setSize(500, 155);
 		setResizable(false);
-		setLocationRelativeTo(getOwner());
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 
 	private void start() {

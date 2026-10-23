@@ -20,6 +20,7 @@ import info.openrocket.swing.gui.dialogs.DecalNotFoundDialog;
 import info.openrocket.swing.gui.util.FileHelper;
 import info.openrocket.swing.gui.util.OverwritePrompter;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.widgets.SaveFileChooser;
 
 public abstract class ExportDecalAction {
@@ -39,7 +40,7 @@ public abstract class ExportDecalAction {
 		}
 		
 		ExportDecalSelectionDialog selectionDialog = new ExportDecalSelectionDialog(parent, exportableDecals);
-		selectionDialog.setLocationRelativeTo(parent);
+		WindowLocationUtil.centerOnMainWindow(selectionDialog);
 		selectionDialog.setVisible(true);
 		
 		if (!selectionDialog.isApproved()) {

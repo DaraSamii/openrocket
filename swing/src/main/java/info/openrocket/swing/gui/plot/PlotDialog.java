@@ -10,6 +10,7 @@ import info.openrocket.swing.gui.util.FileHelper;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.widgets.SaveFileChooser;
 import net.miginfocom.swing.MigLayout;
 import org.jfree.chart.ChartPanel;
@@ -149,13 +150,11 @@ public abstract class PlotDialog<T extends DataType, B extends DataBranch<T>, C 
 			}
 		});
 		panel.add(button, "gapbefore push, right");
-		this.setLocationByPlatform(true);
 		this.pack();
 
 		GUIUtil.setDisposableDialogOptions(this, button);
 		GUIUtil.rememberWindowSize(this);
-		this.setLocationByPlatform(true);
-		GUIUtil.rememberWindowPosition(this);
+		WindowLocationUtil.centerOnMainWindow(this);
 	}
 
 	protected void addXAxisWarningMessage(JPanel panel, C config) {

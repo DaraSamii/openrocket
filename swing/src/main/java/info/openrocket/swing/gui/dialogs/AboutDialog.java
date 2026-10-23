@@ -17,6 +17,7 @@ import info.openrocket.swing.gui.components.StyledLabel.Style;
 import info.openrocket.swing.gui.components.URLLabel;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.core.l10n.Translator;
 import info.openrocket.core.startup.Application;
 import info.openrocket.core.util.BuildProperties;
@@ -175,7 +176,7 @@ public class AboutDialog extends JDialog {
 		this.add(panel);
 		this.setTitle("OpenRocket " + version);
 		this.pack();
-		this.setLocationRelativeTo(parent);
+		WindowLocationUtil.centerOnMainWindow(this);
 		
 		GUIUtil.setDisposableDialogOptions(this, close);
 	}

@@ -48,6 +48,7 @@ import info.openrocket.swing.gui.util.FileHelper;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.gui.widgets.SaveFileChooser;
 import info.openrocket.swing.logging.LoggingSystemSetup;
 import info.openrocket.swing.startup.GuiModule;
@@ -138,8 +139,7 @@ public class PhotoFrame extends JFrame {
 
 		
 		GUIUtil.rememberWindowSize(this);
-		this.setLocationByPlatform(true);
-		GUIUtil.rememberWindowPosition(this);
+		WindowLocationUtil.centerOnMainWindow(this);
 		GUIUtil.setWindowIcons(this);
 
 		settings = new JDialog(this, trans.get("PhotoSettingsConfig.title"), Dialog.ModalityType.MODELESS);
@@ -151,9 +151,8 @@ public class PhotoFrame extends JFrame {
 		settings.setType(Window.Type.NORMAL);
 		GUIUtil.setWindowIcons(settings);
 		settings.pack();
-		settings.setLocationByPlatform(true);
 		GUIUtil.rememberWindowSize(settings);
-		GUIUtil.rememberWindowPosition(settings);
+		WindowLocationUtil.centerOnMainWindow(settings);
 		if (ownerWindow != null) {
 			ownerWindow.addWindowListener(ownerWindowListener);
 		}

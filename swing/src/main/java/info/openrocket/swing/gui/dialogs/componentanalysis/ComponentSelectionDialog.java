@@ -17,6 +17,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.List;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 public class ComponentSelectionDialog extends JDialog {
 	private static final Translator trans = Application.getTranslator();
@@ -61,7 +62,7 @@ public class ComponentSelectionDialog extends JDialog {
 		add(buttonPanel, BorderLayout.SOUTH);
 
 		setSize(400, 500);
-		setLocationRelativeTo(owner);
+		WindowLocationUtil.centerOnMainWindow(this);
 		setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 	}
 

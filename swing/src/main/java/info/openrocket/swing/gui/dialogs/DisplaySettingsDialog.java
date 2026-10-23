@@ -15,6 +15,7 @@ import info.openrocket.swing.gui.theme.UITheme;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
 import info.openrocket.swing.gui.util.SwingPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import net.miginfocom.swing.MigLayout;
 
 import javax.swing.JButton;
@@ -139,7 +140,7 @@ public class DisplaySettingsDialog extends JDialog {
 
 		add(panel);
 		pack();
-		setLocationRelativeTo(getParent());
+		WindowLocationUtil.centerOnMainWindow(this);
 
 		GUIUtil.setDisposableDialogOptions(this, okButton);
 		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);

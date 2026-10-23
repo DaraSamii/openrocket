@@ -17,6 +17,7 @@ import net.miginfocom.swing.MigLayout;
 import info.openrocket.core.database.MotorDatabaseLoader;
 import info.openrocket.swing.gui.main.Splash;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,7 +126,7 @@ public class BlockingMotorDatabaseProvider implements Provider<ThrustCurveMotorS
 			this.add(panel);
 			this.pack();
 			this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-			this.setLocationByPlatform(true);
+			WindowLocationUtil.centerOnMainWindow(this);
 			GUIUtil.setWindowIcons(this);
 		}
 	}

@@ -46,6 +46,7 @@ import info.openrocket.swing.gui.components.StyledLabel;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.SwingPreferences;
 import info.openrocket.swing.gui.util.TableUIPreferences;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import info.openrocket.swing.utils.TableRowTraversalPolicy;
 
 /**
@@ -94,7 +95,6 @@ public class ComponentPresetChooserDialog extends JDialog {
 
 		if (owner.getParent() != null) {
 			this.setPreferredSize(new Dimension((int)(0.7 * owner.getParent().getWidth()), (int) (0.7 * owner.getParent().getHeight())));
-			this.setLocationRelativeTo(owner.getParent());
 		}
 		List<TypedKey<?>> displayedColumnKeys = Arrays.asList(component.getPresetType().getDisplayedColumns());
 		
@@ -223,8 +223,7 @@ public class ComponentPresetChooserDialog extends JDialog {
 
 		GUIUtil.setDisposableDialogOptions(this, closeButton);
 		GUIUtil.rememberWindowSize(this);
-		this.setLocationByPlatform(true);
-		GUIUtil.rememberWindowPosition(this);
+		WindowLocationUtil.centerOnMainWindow(this);
 
 		updateFilters();
 	}

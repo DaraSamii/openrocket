@@ -23,6 +23,7 @@ import info.openrocket.core.startup.Application;
 import info.openrocket.core.util.MathUtil;
 
 import net.miginfocom.swing.MigLayout;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 
 
 /**
@@ -85,7 +86,7 @@ public class SwingWorkerDialog extends JDialog implements PropertyChangeListener
 		this.add(panel);
 		this.setMinimumSize(new Dimension(250, 100));
 		this.pack();
-		this.setLocationRelativeTo(parent);
+		WindowLocationUtil.centerOnMainWindow(this);
 		this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
 	}
 	

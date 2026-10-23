@@ -11,6 +11,7 @@ import info.openrocket.swing.gui.components.StyledLabel;
 import info.openrocket.swing.gui.components.UnitSelector;
 import info.openrocket.swing.gui.util.FlatLafOutlines;
 import info.openrocket.swing.gui.util.GUIUtil;
+import info.openrocket.swing.gui.util.WindowLocationUtil;
 import net.miginfocom.swing.MigLayout;
 
 import javax.swing.BorderFactory;
@@ -418,7 +419,7 @@ public class CSVImportSettingsDialog extends JDialog {
 		// Set preferred size instead of fixed size
 		setPreferredSize(new Dimension(600, 550));
 		pack();
-		setLocationRelativeTo(owner);
+		WindowLocationUtil.centerOnMainWindow(this);
 
 		GUIUtil.installEscapeCloseButtonOperation(this, cancelButton);
 		getRootPane().setDefaultButton(okButton);
