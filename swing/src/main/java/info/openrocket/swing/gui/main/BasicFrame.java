@@ -2527,8 +2527,6 @@ private static final Translator trans = Application.getTranslator();
 			simulationPanel.updatePreviousSelection();
 		}
 		previousTab = tab;
-		// The plots use the full height of the window, without the rocket figure
-		rocketpanel.setVisible(tab != PLOT_EXPORT_TAB);
 		switch (tab) {
 			case DESIGN_TAB:
 				designPanel.takeTheSpotlight();
