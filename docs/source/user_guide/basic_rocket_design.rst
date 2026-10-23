@@ -250,6 +250,42 @@ the rocket; everything else is inside the rocket. As you will see in the image t
 
    The *Body Components and Fin Sets* submenu.
 
+Shaping a free-form fin
+^^^^^^^^^^^^^^^^^^^^^^^
+
+On the :guilabel:`Shape` tab of a free-form fin, right-click a point or an edge of the fin to shape it:
+
+- :guilabel:`Round corner (fillet)` replaces the corner with a circular arc of the radius you choose, tangent to both
+  edges. The dialog shows the largest radius that the two edges allow.
+- :guilabel:`Chamfer corner` cuts the corner at the same distance from it on both edges.
+- :guilabel:`Curve this edge` (or :guilabel:`Curve edge to next point` on a point) replaces the straight edge with a
+  circular arc (by how far its middle bulges out of or into the fin), a Bézier curve with one or two control points,
+  or a quarter ellipse like the edge of an elliptical fin.
+- :guilabel:`Point Actions` > :guilabel:`Smooth outline` replaces the whole outline with a smooth curve through all
+  its points, so a few points are enough to draw a smooth fin.
+
+Each tool shows the new outline over the old one before you apply it, and tells you when a value does not fit, for
+example a radius larger than the edges or a curve that would go into the body tube. The curves are stored as fin
+points, which you can still move one by one; the number of points in a curve sets how smooth it is. Every change can
+be undone with the undo button below the figure. The fillets where the fins meet the body tube are set separately, under
+:guilabel:`Root Fillets` on the :guilabel:`General` tab.
+
+.. figure:: /img/user_guide/basic_rocket_design/FinShapeCurve.png
+   :width: 45%
+   :align: center
+   :figclass: or-image-border
+   :alt: Curving a fin edge with a Bézier curve.
+
+   Curving the leading edge with a Bézier curve with two control points.
+
+.. figure:: /img/user_guide/basic_rocket_design/FinShapeTools.png
+   :width: 80%
+   :align: center
+   :figclass: or-image-border
+   :alt: A free-form fin with a rounded tip, a chamfer and a curved leading edge.
+
+   The fin after rounding the tip, chamfering a corner and curving the leading edge.
+
 Inner Components
 ----------------
 
