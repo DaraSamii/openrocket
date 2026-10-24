@@ -241,13 +241,8 @@ public class MultiLevelWindEditDialog extends JDialog {
 	private boolean downloadLevels(double latitude, double longitude) {
 		WindProfileDownloadDialog downloadDialog = new WindProfileDownloadDialog(this, latitude, longitude);
 		downloadDialog.setVisible(true);
+		// The download dialog already showed the downloaded levels and that they replace the current ones
 		if (downloadDialog.getLevels() == null) {
-			return false;
-		}
-		int result = JOptionPane.showConfirmDialog(this, trans.get("WindProfileEditorDlg.dlg.overwriteLevels.msg"),
-				trans.get("WindProfileEditorDlg.dlg.overwriteLevels.title"), JOptionPane.YES_NO_OPTION,
-				JOptionPane.WARNING_MESSAGE);
-		if (result != JOptionPane.YES_OPTION) {
 			return false;
 		}
 		windTable.setLevels(downloadDialog.getLevels());

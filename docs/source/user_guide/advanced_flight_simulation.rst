@@ -167,7 +167,12 @@ launch date and time in local time at the launch site. Days from 2022 to about t
 days are forecasts, past days are the forecasts that were made for them. The downloaded levels replace the current ones:
 the wind at 10, 80, 120 and 180 m above the ground, and at the standard pressure levels above it, at altitudes above sea
 level. The data comes from `Open-Meteo <https://open-meteo.com>`__ under the CC BY 4.0 license; downloading sends the
-location and date to open-meteo.com.
+location and date to open-meteo.com. Before the levels are used, the dialog shows exactly what was downloaded: the weather
+model, the place you asked for and the weather model grid point the data are for (with the distance between them), the
+ground elevation there, the local time and time zone, the wind 10 m above the ground and every level.
+:guilabel:`Open the downloaded data in the browser` opens the same address the data were downloaded from, so you can
+check the raw values. :guilabel:`Use these levels` replaces the wind levels; :guilabel:`Back` lets you change the
+request.
 
 Simulation options
 ------------------
