@@ -235,7 +235,19 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 		Object oldInterpolation = g2.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
 		g2.clip(dataArea);
 		g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		// First publish all the tiles that this view needs: a loader thread that starts a request before the set is
+		// published would otherwise drop it as no longer visible, and the tile would stay missing
 		Set<String> nowWanted = new HashSet<>();
+		for (int tileY = firstY; tileY <= lastY; tileY++) {
+			for (int tileX = firstX; tileX <= lastX; tileX++) {
+				String key = key(currentLayer, zoom, Math.floorMod(tileX, tiles), tileY);
+				if (!MEMORY_CACHE.containsKey(key) && !MISSING.contains(key)) {
+					nowWanted.add(key);
+				}
+			}
+		}
+		wanted = nowWanted;
+
 		int visible = 0;
 		int loaded = 0;
 		int failed = 0;
@@ -258,7 +270,6 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 					continue;
 				}
 				drawFallback(g2, currentLayer, zoom, x, tileY, x0, y0, x1, y1);
-				nowWanted.add(key);
 				long[] failure = FAILURES.get(key);
 				if (failure != null && System.currentTimeMillis() < failure[1]) {
 					failed++;
@@ -268,7 +279,6 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 				request(currentLayer, zoom, x, tileY, key, priority);
 			}
 		}
-		wanted = nowWanted;
 		drawAttribution(g2, dataArea, currentLayer.getAttribution());
 		if (oldInterpolation != null) {
 			g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, oldInterpolation);
@@ -292,7 +302,9 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 	}
 
 	/**
-	 * Draws the part of the nearest coarser tile that is loaded, scaled up, in place of a tile that is loading.
+	 * Draws already loaded tiles of other zoom levels in place of a tile that is loading: the part of the nearest
+	 * coarser tile, scaled up, which covers it when zooming in, and over it the finer tiles, scaled down, which are
+	 * loaded when zooming out.
 	 */
 	private static void drawFallback(Graphics2D g2, MapLayer layer, int zoom, int x, int y, double x0, double y0,
 			double x1, double y1) {
@@ -301,7 +313,22 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 			BufferedImage image = MEMORY_CACHE.get(key(layer, zoom - up, part[0], part[1]));
 			if (image != null) {
 				drawImage(g2, image, part[2], part[3], part[4], x0, y0, x1, y1);
-				return;
+				break;
+			}
+		}
+		for (int down = 2; down >= 1; down--) {
+			if (zoom + down > layer.getMaxZoom()) {
+				continue;
+			}
+			int count = 1 << down;
+			for (int j = 0; j < count; j++) {
+				for (int i = 0; i < count; i++) {
+					BufferedImage image = MEMORY_CACHE.get(key(layer, zoom + down, (x << down) + i, (y << down) + j));
+					if (image != null) {
+						drawImage(g2, image, 0, 0, TILE_SIZE, x0 + (x1 - x0) * i / count, y0 + (y1 - y0) * j / count,
+								x0 + (x1 - x0) * (i + 1) / count, y0 + (y1 - y0) * (j + 1) / count);
+					}
+				}
 			}
 		}
 	}
