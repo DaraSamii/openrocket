@@ -8,7 +8,9 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Point;
 import java.awt.Shape;
+import java.awt.Toolkit;
 import java.awt.Window;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
@@ -31,13 +33,14 @@ import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.Icon;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
@@ -63,6 +66,7 @@ import info.openrocket.swing.gui.theme.UITheme;
 import info.openrocket.swing.gui.util.FileHelper;
 import info.openrocket.swing.gui.util.GUIUtil;
 import info.openrocket.swing.gui.util.Icons;
+import info.openrocket.swing.gui.util.URLUtil;
 import info.openrocket.swing.gui.widgets.HeaderToolTipTable;
 import info.openrocket.swing.gui.widgets.SaveFileChooser;
 
@@ -77,6 +81,7 @@ import org.jfree.chart.block.BlockBorder;
 import org.jfree.chart.entity.ChartEntity;
 import org.jfree.chart.entity.EntityCollection;
 import org.jfree.chart.entity.LegendItemEntity;
+import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.SeriesRenderingOrder;
 import org.jfree.chart.plot.XYPlot;
@@ -156,7 +161,19 @@ public final class LandingDispersionResultsDialog extends JDialog {
 	private final JTabbedPane resultTabs;
 	private final MonteCarloMetricsPanel metricsPanel;
 	private final MapTileAnnotation map;
-	private final JCheckBox showMapBox = new JCheckBox(trans.get("LandingDispersionResultsDlg.chart.showMap"));
+	private final PlotOverlayAnnotation overlay;
+	/** No map, OpenStreetMap or OpenTopoMap */
+	private final JComboBox<String> mapCombo = new JComboBox<>(new String[]{
+			trans.get("LandingDispersionResultsDlg.map.none"), trans.get("LandingDispersionResultsDlg.map.osm"),
+			trans.get("LandingDispersionResultsDlg.map.topo")});
+	private final JLabel mapStatusLabel = new JLabel(" ");
+	private final JLabel positionLabel = new JLabel(trans.get("LandingDispersionResultsDlg.chart.controls"));
+	private final double launchLatitude;
+	private final double launchLongitude;
+	/** The landings of the selected body, with their run numbers (0 is the nominal run) */
+	private final List<Object[]> landings = new ArrayList<>();
+	/** Start of a measurement while it is being made, as east and north in m */
+	private double[] measureStart = null;
 	private final Runnable themeChangeListener;
 	private Point panAnchor;
 	private int highlightedSeries = -1;
@@ -177,7 +194,11 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		this.distanceUnit = UnitGroup.UNITS_DISTANCE.getDefaultUnit();
 		this.bodyCombo = new JComboBox<>(result.getLandingBodies().toArray(new LandingBody[0]));
 		this.chart = createChart();
-		this.map = new MapTileAnnotation(latitude, longitude, distanceUnit, chart::fireChartChanged);
+		this.launchLatitude = latitude;
+		this.launchLongitude = longitude;
+		this.map = new MapTileAnnotation(latitude, longitude, distanceUnit, chart::fireChartChanged,
+				this::updateMapStatus);
+		this.overlay = new PlotOverlayAnnotation(distanceUnit);
 		this.chartPanel = createChartPanel();
 		this.summaryArea = createSummaryArea();
 		this.runTableModel = new RunTableModel(result, distanceUnit);
@@ -348,22 +369,177 @@ public final class LandingDispersionResultsDialog extends JDialog {
 	}
 
 	private JPanel createChartControls() {
-		JPanel controls = new JPanel(new MigLayout("ins 0", "[][grow][]0[]0[]"));
-		showMapBox.setToolTipText(trans.get("LandingDispersionResultsDlg.chart.showMap.ttip"));
-		showMapBox.addActionListener(event -> {
+		JPanel controls = new JPanel(new MigLayout("ins 0, gapy 2", "[][][grow][]0[]0[]"));
+		mapCombo.setToolTipText(trans.get("LandingDispersionResultsDlg.map.ttip"));
+		mapCombo.setSelectedIndex(Math.max(0, Math.min(2, Application.getPreferences().getInt(MAP_PREFERENCE, 0))));
+		mapCombo.addActionListener(event -> {
+			Application.getPreferences().putInt(MAP_PREFERENCE, mapCombo.getSelectedIndex());
 			if (chart.getXYPlot().getRenderer() instanceof XYLineAndShapeRenderer renderer) {
 				setRenderer(renderer);
 			}
+			updateMapStatus();
 		});
-		controls.add(showMapBox);
-		controls.add(new JLabel(trans.get("LandingDispersionResultsDlg.chart.controls")), "growx");
+		controls.add(new JLabel(trans.get("LandingDispersionResultsDlg.map.lbl")));
+		controls.add(mapCombo);
+		controls.add(mapStatusLabel, "growx");
 		controls.add(createChartButton(Icons.ZOOM_IN, "LandingDispersionResultsDlg.chart.zoomIn",
 				() -> zoomChart(0.8)));
 		controls.add(createChartButton(Icons.ZOOM_RESET, "LandingDispersionResultsDlg.chart.fit",
 				this::fitChartToData));
 		controls.add(createChartButton(Icons.ZOOM_OUT, "LandingDispersionResultsDlg.chart.zoomOut",
-				() -> zoomChart(1.25)));
+				() -> zoomChart(1.25)), "wrap");
+		positionLabel.setToolTipText(trans.get("LandingDispersionResultsDlg.chart.controls"));
+		controls.add(positionLabel, "spanx, growx, wmin 0");
 		return controls;
+	}
+
+	private static final String MAP_PREFERENCE = "MonteCarloMap";
+
+	private void updateMapStatus() {
+		if (mapCombo.getSelectedIndex() == 0) {
+			mapStatusLabel.setText(" ");
+			return;
+		}
+		MapTileAnnotation.Status status = map.getStatus();
+		if (status.failed() > 0) {
+			mapStatusLabel.setText(String.format(trans.get("LandingDispersionResultsDlg.map.failed"),
+					status.failed()));
+		} else if (status.loaded() < status.visible()) {
+			mapStatusLabel.setText(String.format(trans.get("LandingDispersionResultsDlg.map.loading"),
+					status.visible() - status.loaded()));
+		} else {
+			mapStatusLabel.setText(" ");
+		}
+	}
+
+	/**
+	 * @return the place under the mouse as east and north of the launch site in m, or null outside the plot
+	 */
+	private double[] toEastNorth(Point point) {
+		Rectangle2D dataArea = chartPanel.getScreenDataArea();
+		if (!dataArea.contains(point)) {
+			return null;
+		}
+		XYPlot plot = chart.getXYPlot();
+		double east = plot.getDomainAxis().java2DToValue(point.getX(), dataArea,
+				Plot.resolveDomainAxisLocation(plot.getDomainAxisLocation(), plot.getOrientation()));
+		double north = plot.getRangeAxis().java2DToValue(point.getY(), dataArea,
+				Plot.resolveRangeAxisLocation(plot.getRangeAxisLocation(), plot.getOrientation()));
+		return new double[]{distanceUnit.fromUnit(east), distanceUnit.fromUnit(north)};
+	}
+
+	/**
+	 * @return the latitude, longitude, distance and bearing from the launch site of a place, as text
+	 */
+	private String describe(double[] eastNorth) {
+		double[] latLon = MapGeometry.toLatLon(launchLatitude, launchLongitude, eastNorth[0], eastNorth[1]);
+		return String.format(trans.get("LandingDispersionResultsDlg.chart.position"),
+				MapGeometry.format(latLon[0], latLon[1]),
+				distanceUnit.toStringUnit(Math.hypot(eastNorth[0], eastNorth[1])),
+				MapGeometry.bearing(0, 0, eastNorth[0], eastNorth[1]));
+	}
+
+	private void updatePosition(Point point) {
+		double[] place = toEastNorth(point);
+		if (measureStart != null && place != null) {
+			overlay.setMeasurement(measureStart, place);
+			chart.fireChartChanged();
+		}
+		positionLabel.setText(place == null ? trans.get("LandingDispersionResultsDlg.chart.controls")
+				: describe(place));
+	}
+
+	/**
+	 * @return the landing nearest the point, within a few pixels, as {run number, landing point}, or null
+	 */
+	private Object[] landingAt(Point point) {
+		Rectangle2D dataArea = chartPanel.getScreenDataArea();
+		XYPlot plot = chart.getXYPlot();
+		RectangleEdgeHolder edges = new RectangleEdgeHolder(plot);
+		Object[] nearest = null;
+		double nearestDistance = 7;
+		for (Object[] landing : landings) {
+			LandingPoint p = (LandingPoint) landing[1];
+			double x = plot.getDomainAxis().valueToJava2D(toDisplayDistance(p.east()), dataArea, edges.domain);
+			double y = plot.getRangeAxis().valueToJava2D(toDisplayDistance(p.north()), dataArea, edges.range);
+			double distance = point.distance(x, y);
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearest = landing;
+			}
+		}
+		return nearest;
+	}
+
+	private record RectangleEdgeHolder(org.jfree.chart.ui.RectangleEdge domain, org.jfree.chart.ui.RectangleEdge range) {
+		RectangleEdgeHolder(XYPlot plot) {
+			this(Plot.resolveDomainAxisLocation(plot.getDomainAxisLocation(), plot.getOrientation()),
+					Plot.resolveRangeAxisLocation(plot.getRangeAxisLocation(), plot.getOrientation()));
+		}
+	}
+
+	private void showPlotMenu(MouseEvent event) {
+		double[] place = toEastNorth(event.getPoint());
+		if (place == null) {
+			return;
+		}
+		double[] latLon = MapGeometry.toLatLon(launchLatitude, launchLongitude, place[0], place[1]);
+		JPopupMenu menu = new JPopupMenu();
+		JMenuItem info = new JMenuItem(describe(place));
+		info.setEnabled(false);
+		menu.add(info);
+		menu.add(menuItem("LandingDispersionResultsDlg.menu.copyCoordinates",
+				() -> copy(MapGeometry.formatDecimal(latLon[0], latLon[1]))));
+
+		Object[] landing = landingAt(event.getPoint());
+		if (landing != null) {
+			LandingPoint p = (LandingPoint) landing[1];
+			double[] landingLatLon = MapGeometry.toLatLon(launchLatitude, launchLongitude, p.east(), p.north());
+			menu.addSeparator();
+			int run = (Integer) landing[0];
+			JMenuItem landingInfo = new JMenuItem(String.format(trans.get(run == 0
+					? "LandingDispersionResultsDlg.menu.nominalLanding" : "LandingDispersionResultsDlg.menu.landing"),
+					run, MapGeometry.format(landingLatLon[0], landingLatLon[1])));
+			landingInfo.setEnabled(false);
+			menu.add(landingInfo);
+			menu.add(menuItem("LandingDispersionResultsDlg.menu.copyLanding",
+					() -> copy(MapGeometry.formatDecimal(landingLatLon[0], landingLatLon[1]))));
+		}
+
+		menu.addSeparator();
+		menu.add(menuItem("LandingDispersionResultsDlg.menu.measure", () -> {
+			measureStart = place;
+			overlay.setMeasurement(place, place);
+			chart.fireChartChanged();
+		}));
+		menu.add(menuItem("LandingDispersionResultsDlg.menu.measureFromPad", () -> {
+			measureStart = null;
+			overlay.setMeasurement(new double[]{0, 0}, place);
+			chart.fireChartChanged();
+		}));
+		JMenuItem clear = menuItem("LandingDispersionResultsDlg.menu.clearMeasure", () -> {
+			measureStart = null;
+			overlay.setMeasurement(null, null);
+			chart.fireChartChanged();
+		});
+		menu.add(clear);
+
+		menu.addSeparator();
+		menu.add(menuItem("LandingDispersionResultsDlg.menu.openOsm",
+				() -> URLUtil.openWebpage(MapGeometry.openStreetMapUrl(latLon[0], latLon[1]))));
+		menu.add(menuItem("LandingDispersionResultsDlg.menu.openGoogle",
+				() -> URLUtil.openWebpage(MapGeometry.googleMapsUrl(latLon[0], latLon[1]))));
+		menu.show(event.getComponent(), event.getX(), event.getY());
+	}
+
+	private static JMenuItem menuItem(String key, Runnable action) {
+		JMenuItem item = new JMenuItem(trans.get(key));
+		item.addActionListener(e -> action.run());
+		return item;
+	}
+
+	private static void copy(String text) {
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
 	}
 
 	private static JButton createChartButton(Icon icon, String tooltipKey, Runnable action) {
@@ -383,7 +559,21 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		MouseAdapter mouseAdapter = new MouseAdapter() {
 			@Override
 			public void mousePressed(MouseEvent event) {
+				if (event.isPopupTrigger()) {
+					showPlotMenu(event);
+					return;
+				}
 				Rectangle2D dataArea = panel.getScreenDataArea();
+				if (event.getButton() == MouseEvent.BUTTON1 && measureStart != null) {
+					// A click ends the measurement where it is
+					double[] end = toEastNorth(event.getPoint());
+					if (end != null) {
+						overlay.setMeasurement(measureStart, end);
+						chart.fireChartChanged();
+					}
+					measureStart = null;
+					return;
+				}
 				if (event.getButton() == MouseEvent.BUTTON1 && dataArea.contains(event.getPoint())) {
 					panAnchor = event.getPoint();
 					panel.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
@@ -402,6 +592,10 @@ public final class LandingDispersionResultsDialog extends JDialog {
 
 			@Override
 			public void mouseReleased(MouseEvent event) {
+				if (event.isPopupTrigger()) {
+					showPlotMenu(event);
+					return;
+				}
 				if (panAnchor != null) {
 					panAnchor = null;
 					panel.setCursor(Cursor.getDefaultCursor());
@@ -411,6 +605,7 @@ public final class LandingDispersionResultsDialog extends JDialog {
 			@Override
 			public void mouseMoved(MouseEvent event) {
 				updateLegendHighlight(panel, event.getPoint());
+				updatePosition(event.getPoint());
 			}
 
 			@Override
@@ -527,6 +722,16 @@ public final class LandingDispersionResultsDialog extends JDialog {
 		List<LandingPoint> points = result.getLandingPoints(body.bodyId());
 		LandingPoint nominal = result.getNominalResult().getFailureMessage(body.bodyId()) == null
 				? result.getNominalResult().getLandingPoint(body.bodyId()) : null;
+		landings.clear();
+		if (nominal != null) {
+			landings.add(new Object[]{0, nominal});
+		}
+		for (int i = 0; i < result.getRunResults().size(); i++) {
+			MonteCarloRunResult run = result.getRunResults().get(i);
+			if (run.getFailureMessage(body.bodyId()) == null && run.getLandingPoint(body.bodyId()) != null) {
+				landings.add(new Object[]{i + 1, run.getLandingPoint(body.bodyId())});
+			}
+		}
 		DispersionStatistics statistics = points.isEmpty() ? null : DispersionStatistics.from(points);
 		updateChart(body, points, nominal, statistics);
 		updateSummary(body, nominal, statistics);
@@ -580,9 +785,13 @@ public final class LandingDispersionResultsDialog extends JDialog {
 	 */
 	private void setRenderer(XYLineAndShapeRenderer renderer) {
 		renderer.removeAnnotation(map);
-		if (showMapBox.isSelected()) {
+		renderer.removeAnnotation(overlay);
+		if (mapCombo.getSelectedIndex() > 0) {
+			map.setLayer(mapCombo.getSelectedIndex() == 1 ? MapTileAnnotation.MapLayer.OPENSTREETMAP
+					: MapTileAnnotation.MapLayer.OPENTOPOMAP);
 			renderer.addAnnotation(map, Layer.BACKGROUND);
 		}
+		renderer.addAnnotation(overlay, Layer.FOREGROUND);
 		chart.getXYPlot().setRenderer(renderer);
 	}
 
@@ -851,6 +1060,9 @@ public final class LandingDispersionResultsDialog extends JDialog {
 				formatDistance(east), formatDistance(north), distanceUnit.getUnit())).append('\n');
 		text.append(String.format(trans.get("LandingDispersionResultsDlg.summary.range"),
 				formatDistance(Math.hypot(east, north)), distanceUnit.getUnit())).append('\n');
+		double[] latLon = MapGeometry.toLatLon(launchLatitude, launchLongitude, east, north);
+		text.append(String.format(trans.get("LandingDispersionResultsDlg.summary.latLon"),
+				MapGeometry.format(latLon[0], latLon[1]))).append('\n');
 	}
 
 	private double toDisplayDistance(double value) {
