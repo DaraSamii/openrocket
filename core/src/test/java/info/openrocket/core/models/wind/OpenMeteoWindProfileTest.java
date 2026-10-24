@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.models.wind.OpenMeteoWindProfile.Level;
 import info.openrocket.core.models.wind.OpenMeteoWindProfile.Model;
+import info.openrocket.core.models.wind.OpenMeteoWindProfile.Profile;
 
 public class OpenMeteoWindProfileTest {
 	private static final double EPSILON = 1e-9;
@@ -43,7 +44,7 @@ public class OpenMeteoWindProfileTest {
 
 	@Test
 	public void testLevelsOfTheHourAboveSeaLevelAndAboveTheGround() throws IOException {
-		List<Level> levels = OpenMeteoWindProfile.parse(RESPONSE, LocalDateTime.of(2025, 6, 20, 14, 25));
+		List<Level> levels = OpenMeteoWindProfile.parse(RESPONSE, LocalDateTime.of(2025, 6, 20, 14, 25)).levels();
 
 		assertEquals(List.of(1410.0, 1480.0, 1520.0, 1580.0, 3110.0, 5890.0),
 				levels.stream().map(Level::altitude).toList());
@@ -55,9 +56,26 @@ public class OpenMeteoWindProfileTest {
 
 	@Test
 	public void testMissingValuesLeaveTheirLevelOut() throws IOException {
-		List<Level> levels = OpenMeteoWindProfile.parse(RESPONSE, LocalDateTime.of(2025, 6, 20, 13, 0));
+		List<Level> levels = OpenMeteoWindProfile.parse(RESPONSE, LocalDateTime.of(2025, 6, 20, 13, 0)).levels();
 
 		assertEquals(List.of(1410.0, 1480.0, 1580.0, 3100.0), levels.stream().map(Level::altitude).toList());
+	}
+
+	/**
+	 * The profile tells where and when its data are from: the grid point that Open-Meteo used, its ground elevation,
+	 * the hour, and the time zone of the place.
+	 */
+	@Test
+	public void testTheProfileTellsThePlaceAndTimeOfItsData() throws IOException {
+		Profile profile = OpenMeteoWindProfile.parse(RESPONSE, LocalDateTime.of(2025, 6, 20, 14, 25));
+
+		assertEquals(32.99, profile.latitude(), EPSILON);
+		assertEquals(-106.97, profile.longitude(), EPSILON);
+		assertEquals(1400, profile.elevation(), EPSILON);
+		assertEquals(LocalDateTime.of(2025, 6, 20, 14, 0), profile.time());
+		assertEquals("America/Denver", profile.timezone());
+		// 0.01 degree of latitude is 1.112 km
+		assertEquals(1112, profile.distanceFrom(33.0, -106.97), 1);
 	}
 
 	@Test

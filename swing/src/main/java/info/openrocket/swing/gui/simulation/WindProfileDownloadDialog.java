@@ -118,7 +118,7 @@ public class WindProfileDownloadDialog extends JDialog {
 		new SwingWorker<List<Level>, Void>() {
 			@Override
 			protected List<Level> doInBackground() throws IOException {
-				return OpenMeteoWindProfile.download(latitude, longitude, time, model);
+				return OpenMeteoWindProfile.download(latitude, longitude, time, model).levels();
 			}
 
 			@Override

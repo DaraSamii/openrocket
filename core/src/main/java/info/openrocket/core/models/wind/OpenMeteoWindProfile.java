@@ -63,6 +63,41 @@ public final class OpenMeteoWindProfile {
 	public record Level(double altitude, double speed, double direction) {
 	}
 
+	/**
+	 * A downloaded wind profile, with where and when its data are from, as Open-Meteo reports them.
+	 *
+	 * @param levels the wind levels, from the lowest up
+	 * @param latitude latitude of the weather model grid point that the data are for, in degrees
+	 * @param longitude longitude of that grid point, in degrees
+	 * @param elevation ground elevation of that grid point, in m above sea level
+	 * @param time local time of the data
+	 * @param timezone time zone of the place, like "America/Denver"
+	 * @param model the weather model, or null if not known
+	 * @param source the address the data were downloaded from, or null if not known
+	 */
+	public record Profile(List<Level> levels, double latitude, double longitude, double elevation,
+			LocalDateTime time, String timezone, Model model, URI source) {
+		public Profile {
+			levels = List.copyOf(levels);
+		}
+
+		/**
+		 * @return the distance from a place to the grid point of the data, in m, along the surface of the earth
+		 */
+		public double distanceFrom(double fromLatitude, double fromLongitude) {
+			double lat1 = Math.toRadians(fromLatitude);
+			double lat2 = Math.toRadians(latitude);
+			double dLat = lat2 - lat1;
+			double dLon = Math.toRadians(longitude - fromLongitude);
+			double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+					+ Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+			return 2 * EARTH_RADIUS * Math.asin(Math.min(1, Math.sqrt(a)));
+		}
+	}
+
+	/** Mean radius of the earth, in m */
+	private static final double EARTH_RADIUS = 6371008.8;
+
 	static final String FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 	static final String HISTORICAL_URL = "https://historical-forecast-api.open-meteo.com/v1/forecast";
 	/** Days back that the forecast API keeps; older days come from the historical forecast API */
@@ -108,12 +143,13 @@ public final class OpenMeteoWindProfile {
 	 * Download the wind profile.
 	 *
 	 * @param time local time at the launch site; the profile is the one of that hour
-	 * @return the levels, from the lowest up
+	 * @return the profile, with the place and time its data are for
 	 * @throws IOException if the download fails, or Open-Meteo has no wind for the place and time
 	 */
-	public static List<Level> download(double latitude, double longitude, LocalDateTime time, Model model)
+	public static Profile download(double latitude, double longitude, LocalDateTime time, Model model)
 			throws IOException {
-		String url = uri(latitude, longitude, time, model, LocalDate.now()).toString();
+		URI uri = uri(latitude, longitude, time, model, LocalDate.now());
+		String url = uri.toString();
 		HttpURLConnection connection = new DefaultConnectionSource().getConnection(url);
 		connection.setConnectTimeout(TIMEOUT_MILLIS);
 		connection.setReadTimeout(TIMEOUT_MILLIS);
@@ -127,7 +163,9 @@ public final class OpenMeteoWindProfile {
 				throw new IOException("HTTP " + connection.getResponseCode() + " from Open-Meteo");
 			}
 			try (body) {
-				return parse(new String(body.readAllBytes(), StandardCharsets.UTF_8), time);
+				Profile profile = parse(new String(body.readAllBytes(), StandardCharsets.UTF_8), time);
+				return new Profile(profile.levels(), profile.latitude(), profile.longitude(), profile.elevation(),
+						profile.time(), profile.timezone(), model, uri);
 			}
 		} finally {
 			connection.disconnect();
@@ -137,11 +175,11 @@ public final class OpenMeteoWindProfile {
 	/**
 	 * @param json the response of Open-Meteo
 	 * @param time local time of the profile
-	 * @return the levels of the hour of the time, from the lowest up; levels under the ground and levels without data
-	 * 		are left out
+	 * @return the profile of the hour of the time, without model and source; levels under the ground and levels
+	 * 		without data are left out
 	 * @throws IOException if the response is an error, or has no wind for the hour
 	 */
-	static List<Level> parse(String json, LocalDateTime time) throws IOException {
+	static Profile parse(String json, LocalDateTime time) throws IOException {
 		JsonObject root;
 		try {
 			root = JsonParser.parseString(json).getAsJsonObject();
@@ -179,7 +217,13 @@ public final class OpenMeteoWindProfile {
 			throw new IOException("No wind data from Open-Meteo for " + HOUR.format(time));
 		}
 		levels.sort(Comparator.comparingDouble(Level::altitude));
-		return levels;
+		return new Profile(levels, number(root, "latitude"), number(root, "longitude"), elevation,
+				time.withMinute(0).withSecond(0).withNano(0),
+				root.has("timezone") ? root.get("timezone").getAsString() : "GMT", null, null);
+	}
+
+	private static double number(JsonObject root, String name) {
+		return root.has(name) ? root.get(name).getAsDouble() : Double.NaN;
 	}
 
 	private static void addLevel(List<Level> levels, double altitude, double speed, double directionDegrees) {
