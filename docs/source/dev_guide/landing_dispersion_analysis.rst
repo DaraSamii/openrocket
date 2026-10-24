@@ -200,14 +200,28 @@ palette, drag-to-pan, uniform mouse-wheel zoom, and explicit zoom-in, fit, and
 zoom-out controls.  Covariance ellipses share one color and use solid, dashed,
 and dash-dotted strokes for one, two, and three sigma.
 
-**Show map**, off by default, draws OpenStreetMap tiles of the launch site behind the
-landings.  The launch site is the latitude and longitude of the simulation's launch
-conditions, and the landings are placed on the map by their east and north distance
-from it, which is accurate for the few kilometres of a landing cloud.  The zoom level
-follows the plot scale.  Following the OpenStreetMap tile usage policy, only the
-visible tiles are downloaded, two at a time, with an OpenRocket User-Agent; they are
-kept for a week in the ``MapTiles`` folder of the OpenRocket user directory, and the
-map is credited on the plot.  Showing the map sends the area to openstreetmap.org.
+The :guilabel:`Map` list under the plot shows a map of the launch site behind the
+landings: OpenStreetMap, or OpenTopoMap with terrain contours; it starts with no map,
+and the choice is remembered.  The launch site is the latitude and longitude of the
+simulation's launch conditions, and the landings are placed on the map by their east
+and north distance from it, which is accurate for the few kilometres of a landing
+cloud.  The zoom level follows the plot scale.  Only the visible tiles are downloaded,
+the ones nearest the middle of the view first, two at a time, with an OpenRocket
+User-Agent; requests for tiles that are no longer visible are dropped.  While a tile
+loads, a loaded tile of a coarser zoom level is shown in its place, so the map does not
+go blank when zooming.  A tile that fails is tried again after 2, 4, 8 ... up to 60
+seconds, and the status next to the list says how many tiles are loading or failed.
+Tiles are kept for a week in the ``MapTiles`` folder of the OpenRocket user directory,
+and the map is credited on the plot, following the tile usage policies of OpenStreetMap
+and OpenTopoMap.  Showing the map sends the area to openstreetmap.org or opentopomap.org.
+
+The plot has a scale bar, and the line under it shows the latitude, longitude, distance
+and bearing from the launch pad of the place under the mouse.  Right-clicking the plot
+copies the latitude and longitude of the place, shows the run number and coordinates of
+a landing under the mouse, measures the distance and bearing between two places or from
+the launch pad, and opens the place in OpenStreetMap or Google Maps.  The summary gives
+the latitude and longitude of the nominal and the mean landing.  Coordinates are
+computed on the sphere of the map tiles around the launch site, like the map itself.
 
 The plot is titled after the simulation and subtitled with the landing body, the
 number of dispersed runs that landed, and the master seed, so an exported image
