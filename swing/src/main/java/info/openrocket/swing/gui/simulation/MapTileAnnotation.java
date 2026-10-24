@@ -14,9 +14,11 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -261,6 +263,29 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 				}
 			}
 		}
+		// Look-ahead after the visible tiles: one ring of tiles around the view, and the next coarser tiles of the view,
+		// so that panning and zooming out find tiles ready
+		List<int[]> lookAhead = new ArrayList<>();
+		for (int tileY = Math.max(0, firstY - 1); tileY <= Math.min(tiles - 1, lastY + 1); tileY++) {
+			for (int tileX = firstX - 1; tileX <= lastX + 1; tileX++) {
+				if (tileY < firstY || tileY > lastY || tileX < firstX || tileX > lastX) {
+					lookAhead.add(new int[]{zoom, Math.floorMod(tileX, tiles), tileY});
+				}
+			}
+		}
+		if (zoom > 0) {
+			for (int tileY = firstY >> 1; tileY <= lastY >> 1; tileY++) {
+				for (int tileX = firstX >> 1; tileX <= lastX >> 1; tileX++) {
+					lookAhead.add(new int[]{zoom - 1, Math.floorMod(tileX, tiles >> 1), tileY});
+				}
+			}
+		}
+		for (int[] tile : lookAhead) {
+			String key = key(currentLayer, tile[0], tile[1], tile[2]);
+			if (!MEMORY_CACHE.containsKey(key) && !MISSING.contains(key)) {
+				nowWanted.add(key);
+			}
+		}
 		wanted = nowWanted;
 
 		int visible = 0;
@@ -292,6 +317,15 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 				}
 				double priority = Math.hypot(tileX + 0.5 - centerX, tileY + 0.5 - centerY);
 				request(currentLayer, zoom, x, tileY, key, priority);
+			}
+		}
+		for (int i = 0; i < lookAhead.size(); i++) {
+			int[] tile = lookAhead.get(i);
+			String key = key(currentLayer, tile[0], tile[1], tile[2]);
+			long[] failure = FAILURES.get(key);
+			if (nowWanted.contains(key) && (failure == null || System.currentTimeMillis() >= failure[1])) {
+				// Visible tiles have priorities below the number of tiles from the middle, so these come after them
+				request(currentLayer, tile[0], tile[1], tile[2], key, MAX_TILES + i);
 			}
 		}
 		drawAttribution(g2, dataArea, currentLayer.getAttribution());
