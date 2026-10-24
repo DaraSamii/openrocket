@@ -207,9 +207,12 @@ simulation's launch conditions, and the landings are placed on the map by their 
 and north distance from it, which is accurate for the few kilometres of a landing
 cloud.  The zoom level follows the plot scale.  Only the visible tiles are downloaded,
 the ones nearest the middle of the view first, two at a time, with an OpenRocket
-User-Agent; requests for tiles that are no longer visible are dropped.  While a tile
-loads, a loaded tile of a coarser zoom level is shown in its place, so the map does not
-go blank when zooming.  A tile that fails is tried again after 2, 4, 8 ... up to 60
+User-Agent; requests for tiles that are no longer visible are dropped.  After the
+visible tiles, one ring of tiles around the view and the next coarser tiles of the view
+are loaded ahead, so that panning and zooming out find their tiles ready.  While a tile
+loads, the loaded tiles of coarser and finer zoom levels are shown in its place, so the
+map does not go blank when zooming.  A view that would need more than 96 tiles, like a
+maximized window on a large screen, uses coarser tiles, slightly scaled up.  A tile that fails is tried again after 2, 4, 8 ... up to 60
 seconds, and the status next to the list says how many tiles are loading or failed.
 Tiles are kept for a week in the ``MapTiles`` folder of the OpenRocket user directory,
 and the map is credited on the plot, following the tile usage policies of OpenStreetMap
