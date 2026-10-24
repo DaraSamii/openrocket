@@ -97,8 +97,8 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 	static final int MAX_ZOOM = 19;
 	/** How many zoom levels coarser a tile may be to stand in for one that is loading */
 	static final int FALLBACK_LEVELS = 6;
-	/** More tiles than this are never drawn at once, so a far zoomed-out plot cannot download a large area */
-	private static final int MAX_TILES = 64;
+	/** More tiles than this are never drawn at once; a larger plot uses coarser tiles */
+	static final int MAX_TILES = 96;
 	private static final long CACHE_MILLIS = 7L * 24 * 60 * 60 * 1000;
 	private static final int TIMEOUT_MILLIS = 15000;
 	private static final int MEMORY_TILES = 512;
@@ -212,21 +212,36 @@ public class MapTileAnnotation extends AbstractXYAnnotation {
 		RectangleEdge rangeEdge = Plot.resolveRangeAxisLocation(plot.getRangeAxisLocation(), plot.getOrientation());
 		double metersPerScreenPixel = distanceUnit.fromUnit(domainAxis.getRange().getLength()) / dataArea.getWidth();
 		int zoom = Math.min(currentLayer.getMaxZoom(), zoomFor(latitude, metersPerScreenPixel));
-		double resolution = metersPerTilePixel(latitude, zoom);
-		double[] pad = worldPixel(latitude, longitude, zoom);
-
-		// Near the launch site, east and north are straight in the map: one tile pixel is the same size everywhere
-		double left = pad[0] + distanceUnit.fromUnit(domainAxis.getLowerBound()) / resolution;
-		double right = pad[0] + distanceUnit.fromUnit(domainAxis.getUpperBound()) / resolution;
-		double top = pad[1] - distanceUnit.fromUnit(rangeAxis.getUpperBound()) / resolution;
-		double bottom = pad[1] - distanceUnit.fromUnit(rangeAxis.getLowerBound()) / resolution;
-		int tiles = 1 << zoom;
-		int firstX = (int) Math.floor(left / TILE_SIZE);
-		int lastX = (int) Math.floor(right / TILE_SIZE);
-		int firstY = Math.max(0, (int) Math.floor(top / TILE_SIZE));
-		int lastY = Math.min(tiles - 1, (int) Math.floor(bottom / TILE_SIZE));
-		if ((long) (lastX - firstX + 1) * (lastY - firstY + 1) > MAX_TILES) {
-			return;
+		double resolution;
+		double[] pad;
+		double left;
+		double right;
+		double top;
+		double bottom;
+		int tiles;
+		int firstX;
+		int lastX;
+		int firstY;
+		int lastY;
+		while (true) {
+			resolution = metersPerTilePixel(latitude, zoom);
+			pad = worldPixel(latitude, longitude, zoom);
+			// Near the launch site, east and north are straight in the map: one tile pixel is the same size everywhere
+			left = pad[0] + distanceUnit.fromUnit(domainAxis.getLowerBound()) / resolution;
+			right = pad[0] + distanceUnit.fromUnit(domainAxis.getUpperBound()) / resolution;
+			top = pad[1] - distanceUnit.fromUnit(rangeAxis.getUpperBound()) / resolution;
+			bottom = pad[1] - distanceUnit.fromUnit(rangeAxis.getLowerBound()) / resolution;
+			tiles = 1 << zoom;
+			firstX = (int) Math.floor(left / TILE_SIZE);
+			lastX = (int) Math.floor(right / TILE_SIZE);
+			firstY = Math.max(0, (int) Math.floor(top / TILE_SIZE));
+			lastY = Math.min(tiles - 1, (int) Math.floor(bottom / TILE_SIZE));
+			// A large plot, like a maximized window, can need many tiles; coarser tiles then cover it, scaled up a
+			// little, so the map stays on screen and does not download a large area
+			if ((long) (lastX - firstX + 1) * (lastY - firstY + 1) <= MAX_TILES || zoom == 0) {
+				break;
+			}
+			zoom--;
 		}
 		double centerX = (left + right) / 2 / TILE_SIZE;
 		double centerY = (top + bottom) / 2 / TILE_SIZE;
