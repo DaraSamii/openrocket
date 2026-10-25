@@ -60,12 +60,14 @@ import info.openrocket.core.motor.ThrustCurveMotor;
 import info.openrocket.core.plugin.PluginModule;
 import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.BodyTube;
+import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.FlightConfigurationId;
 import info.openrocket.core.rocketcomponent.InnerTube;
 import info.openrocket.core.rocketcomponent.MotorMount;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.RocketComponent;
+import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
 import info.openrocket.core.simulation.extension.impl.ScriptingExtension;
 import info.openrocket.core.simulation.extension.impl.ScriptingUtil;
 import info.openrocket.core.startup.Application;
@@ -747,6 +749,26 @@ public class OpenRocketSaverTest {
 		assertTrue(sizeWithSim < originalSize * 4,
 				String.format("Re-saved file (%,d B) exceeds 4× the original 3dp file (%,d B); "
 						+ "check STORAGE_DECIMAL_PLACES or unexpected data-volume changes", sizeWithSim, originalSize));
+	}
+
+	@Test
+	public void testTipToTipReinforcement() {
+		Rocket rocket = new Rocket();
+		AxialStage stage = new AxialStage();
+		rocket.addChild(stage);
+		BodyTube tube = new BodyTube(0.3, 0.025, 0.002);
+		stage.addChild(tube);
+		TrapezoidFinSet fins = new TrapezoidFinSet();
+		fins.setTipToTipReinforced(true);
+		tube.addChild(fins);
+		rocket.enableEvents();
+		OpenRocketDocument doc = OpenRocketDocumentFactory.createDocumentFromRocket(rocket);
+
+		File file = saveRocket(doc, new StorageOptions());
+		OpenRocketDocument loaded = loadRocket(file.getPath());
+
+		FinSet loadedFins = (FinSet) loaded.getRocket().getChild(0).getChild(0).getChild(0);
+		assertTrue(loadedFins.isTipToTipReinforced());
 	}
 
 	@Test

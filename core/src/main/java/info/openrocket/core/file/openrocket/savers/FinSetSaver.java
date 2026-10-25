@@ -49,6 +49,9 @@ public class FinSetSaver extends ExternalComponentSaver {
 
 		elements.add("<filletradius>" + fins.getFilletRadius() + "</filletradius>");
 		elements.add(materialParam("filletmaterial", fins.getFilletMaterial()));
+		if (fins.isTipToTipReinforced()) {
+			elements.add("<tiptotipreinforced>true</tiptotipreinforced>");
+		}
 	}
 
 }

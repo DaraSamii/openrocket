@@ -288,6 +288,8 @@ class DocumentConfig {
 		setters.put("FinSet:tabposition", new FinTabPositionSetter());
 		setters.put("FinSet:filletradius", new DoubleSetter(
 				Reflection.findMethod(FinSet.class, "setFilletRadius", double.class)));
+		setters.put("FinSet:tiptotipreinforced", new BooleanSetter(
+				Reflection.findMethod(FinSet.class, "setTipToTipReinforced", boolean.class)));
 		setters.put("FinSet:filletmaterial", new MaterialSetter(
 				Reflection.findMethod(FinSet.class, "setFilletMaterial", Material.class),
 				Material.Type.BULK));

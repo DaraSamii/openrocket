@@ -53,6 +53,74 @@ public class FinFlutterTest extends BaseTestCase {
 		assertEquals(2618.1, FinFlutter.flutterVelocity(600000, FinFlutter.geometry(fins), 1043.36, 7.2), 1);
 	}
 
+	/**
+	 * The same example as revised in December 2025, at the corrected altitude of maximum velocity (11.47 psi, speed
+	 * of sound 1090.68 ft/s). The pressure is given to two decimals, hence the tolerance.
+	 */
+	@Test
+	public void bennettWorkedExampleRevised() {
+		TrapezoidFinSet fins = new TrapezoidFinSet(3, 7.5 * INCH, 2.5 * INCH, 4.285 * INCH, 3 * INCH);
+
+		fins.setThickness(0.125 * INCH);
+		assertEquals(1179.97, FinFlutter.flutterVelocity(600000, FinFlutter.geometry(fins), 1090.68, 11.47), 1);
+		fins.setThickness(5.0 / 32 * INCH);
+		assertEquals(1649.05, FinFlutter.flutterVelocity(600000, FinFlutter.geometry(fins), 1090.68, 11.47), 1.5);
+		fins.setThickness(3.0 / 16 * INCH);
+		assertEquals(2167.73, FinFlutter.flutterVelocity(600000, FinFlutter.geometry(fins), 1090.68, 11.47), 2);
+	}
+
+	/**
+	 * Results of Bennett's reference calculator (Fin_Area_and_Cx_and_Input.py) for its example fins, with the tip chord
+	 * computed from the area (TC = -1) and the root chord of the vertex file. The shear modulus and pressure are in
+	 * the units of each example; only their ratio matters.
+	 */
+	@Test
+	public void bennettReferenceCalculator() throws Exception {
+		// trap_rocket_SI: cm, kPa, m/s, with tip-to-tip reinforcement
+		FreeformFinSet trapezoid = freeform(0.01, 0, 0, 10.9, 7.62, 17.2, 7.62, 19, 0);
+		trapezoid.setThickness(0.47625 * 0.01);
+		trapezoid.setMaterial(material(4136854));
+		trapezoid.setTipToTipReinforced(true);
+		assertEquals(1127.3, FinFlutter.flutterVelocity(trapezoid, 317.9728988, 49.56560073), 0.06);
+
+		// poly_rocket: inches, psi, ft/s
+		FreeformFinSet poly = freeform(INCH, 0, 0, 8, 4, 10.5, 4, 10.5, 3.5, 9, 1, 7.5, 0);
+		poly.setThickness(0.1875 * INCH);
+		poly.setMaterial(material(600000));
+		assertEquals(1464.5, FinFlutter.flutterVelocity(poly, 1043.360243, 7.198551509), 0.06);
+
+		// peregrine_rocket: a curved fin swept back past its root
+		FreeformFinSet peregrine = freeform(INCH, 0, 0, 2, 1.65, 3.7, 3, 5, 3.75, 6, 4.15, 7, 4.4, 8, 4.5, 9, 4.44,
+				10, 4.23, 11, 3.88, 12, 3.35, 12.5, 3.01, 12.76, 2.8, 12.795, 2.735, 12.73, 2.69, 12, 2.51, 11, 1.94,
+				10.5, 1.44, 10.2, 1, 10, 0.61, 9.8, 0);
+		peregrine.setThickness(0.25 * INCH);
+		peregrine.setMaterial(material(89000));
+		assertEquals(757.6, FinFlutter.flutterVelocity(peregrine, 1089.330705, 11.3262766), 0.06);
+	}
+
+	@Test
+	public void tipToTipReinforcementDoublesTheShearModulus() {
+		TrapezoidFinSet fins = new TrapezoidFinSet(3, 0.1, 0.05, 0.03, 0.05);
+		fins.setMaterial(material(4.14e9));
+		double plain = FinFlutter.flutterVelocity(fins, 340, 101325);
+		fins.setTipToTipReinforced(true);
+		assertEquals(Math.sqrt(2), FinFlutter.flutterVelocity(fins, 340, 101325) / plain, 1e-12);
+	}
+
+	private static FreeformFinSet freeform(double scale, double... xy) throws Exception {
+		Coordinate[] points = new Coordinate[xy.length / 2];
+		for (int i = 0; i < points.length; i++) {
+			points[i] = new Coordinate(xy[2 * i] * scale, xy[2 * i + 1] * scale);
+		}
+		FreeformFinSet fins = new FreeformFinSet();
+		fins.setPoints(points);
+		return fins;
+	}
+
+	private static Material material(double shearModulus) {
+		return Material.newMaterial(Material.Type.BULK, "Test", 1000, shearModulus, MaterialGroup.OTHER, true);
+	}
+
 	@Test
 	public void ellipticalFinsUseTheEquivalentTrapezoid() {
 		EllipticalFinSet fins = new EllipticalFinSet();

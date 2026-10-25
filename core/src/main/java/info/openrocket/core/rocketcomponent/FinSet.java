@@ -129,6 +129,9 @@ public abstract class FinSet extends ExternalComponent
 	private Material filletMaterial;
 	private double filletRadius = 0;
 
+	/** Whether the fins are reinforced with a layup from tip to tip, which roughly doubles their flutter stiffness */
+	private boolean tipToTipReinforced = false;
+
 	// ==== Cached Values ====
 	// Fin area does not include fin tabs, CG does.
 
@@ -1560,6 +1563,7 @@ public abstract class FinSet extends ExternalComponent
 		this.tabLength = src.tabLength;
 		this.tabOffsetMethod = src.tabOffsetMethod;
 		this.tabPosition = src.tabPosition;
+		this.tipToTipReinforced = src.tipToTipReinforced;
 		
 		return super.copyFrom(c);
 	}
@@ -1606,6 +1610,33 @@ public abstract class FinSet extends ExternalComponent
 		filletRadius = r;
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
+	}
+
+	/**
+	 * @return whether the fins are reinforced with a layup from tip to tip
+	 */
+	public boolean isTipToTipReinforced() {
+		return tipToTipReinforced;
+	}
+
+	/**
+	 * Sets whether the fins are reinforced with a layup from tip to tip; the fin flutter velocity is then computed
+	 * with twice the shear modulus of the fin material.
+	 *
+	 * @param reinforced whether the fins are reinforced from tip to tip
+	 */
+	public void setTipToTipReinforced(boolean reinforced) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof FinSet) {
+				((FinSet) listener).setTipToTipReinforced(reinforced);
+			}
+		}
+
+		if (tipToTipReinforced == reinforced)
+			return;
+		tipToTipReinforced = reinforced;
+		// Changes the flutter results of simulations
+		fireComponentChangeEvent(ComponentChangeEvent.AERODYNAMIC_CHANGE);
 	}
 
 	/**

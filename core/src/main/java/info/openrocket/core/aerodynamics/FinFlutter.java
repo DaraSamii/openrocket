@@ -13,6 +13,11 @@ import info.openrocket.core.util.CoordinateIF;
  * A = span^2 / area the aspect ratio of one fin, t/c the thickness over the root chord, lambda the taper ratio and epsilon the
  * distance of the fin centroid behind the quarter root chord, as a fraction of the root chord.
  * <p>
+ * The shape terms follow Bennett's calculator (github.com/jkb-git/Fin-Flutter-Velocity-Calculator): epsilon from the
+ * area centroid of the fin outline, and for shapes other than trapezoids the taper ratio of the trapezoid with the
+ * same root chord, height and area (zero if that tip chord would be negative). Fins reinforced from tip to tip are
+ * computed with twice the shear modulus, as Bennett suggests.
+ * <p>
  * Martin intended the criterion as a guide for preliminary design; it was checked against tests up to about
  * Mach 1.5, so its results call for a generous safety margin.
  */
@@ -74,14 +79,19 @@ public final class FinFlutter {
 	 * @param speedOfSound the speed of sound, in m/s
 	 * @param pressure the air pressure, in Pa
 	 * @return the flutter velocity in m/s, or NaN if it cannot be determined, e.g. because the fin material has no
-	 * shear modulus or the fin centroid lies ahead of the quarter root chord
+	 * shear modulus or the fin centroid lies ahead of the quarter root chord; twice the material's shear modulus is
+	 * used for fins reinforced from tip to tip
 	 */
 	public static double flutterVelocity(FinSet fins, double speedOfSound, double pressure) {
 		Geometry geometry = geometry(fins);
 		if (geometry == null) {
 			return Double.NaN;
 		}
-		return flutterVelocity(fins.getMaterial().getInPlaneShearModulus(), geometry, speedOfSound, pressure);
+		double shearModulus = fins.getMaterial().getInPlaneShearModulus();
+		if (fins.isTipToTipReinforced()) {
+			shearModulus *= 2;
+		}
+		return flutterVelocity(shearModulus, geometry, speedOfSound, pressure);
 	}
 
 	/**
