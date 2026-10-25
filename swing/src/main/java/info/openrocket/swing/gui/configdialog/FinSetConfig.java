@@ -20,6 +20,7 @@ import info.openrocket.core.unit.UnitGroup;
 import info.openrocket.core.util.CoordinateIF;
 import info.openrocket.core.util.MathUtil;
 import info.openrocket.swing.gui.SpinnerEditor;
+import info.openrocket.swing.gui.adaptors.BooleanModel;
 import info.openrocket.swing.gui.adaptors.DoubleModel;
 import info.openrocket.swing.gui.adaptors.EnumModel;
 import info.openrocket.swing.gui.adaptors.MaterialModel;
@@ -35,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -479,8 +481,7 @@ public abstract class FinSetConfig extends RocketComponentConfig {
 		super.updateFields();
 		if (split != null)
 			split.setEnabled(((FinSet) component).getFinCount() > 1);
-		if (flutterVelocityLabel != null)
-			updateFlutter();
+		updateFlutter();
 	}
 
 	/**
@@ -495,6 +496,15 @@ public abstract class FinSetConfig extends RocketComponentConfig {
 		shearModulusLabel = new JLabel();
 		flutterPanel.add(shearModulusLabel, "wrap");
 
+		//// Tip-to-tip reinforced
+		BooleanModel reinforced = new BooleanModel(component, "TipToTipReinforced");
+		register(reinforced);
+		JCheckBox reinforcedCheck = new JCheckBox(reinforced);
+		reinforcedCheck.setText(trans.get("FinSetConfig.checkbox.TipToTip"));
+		reinforcedCheck.setToolTipText(trans.get("FinSetConfig.checkbox.TipToTip.ttip"));
+		flutterPanel.add(reinforcedCheck, "span, wrap");
+		order.add(reinforcedCheck);
+
 		flutterPanel.add(new JLabel(trans.get("FinSetConfig.lbl.FlutterVelocity")));
 		flutterVelocityLabel = new JLabel();
 		flutterPanel.add(flutterVelocityLabel, "wrap");
@@ -503,22 +513,39 @@ public abstract class FinSetConfig extends RocketComponentConfig {
 		return flutterPanel;
 	}
 
+	/**
+	 * A one-line fin flutter status, for showing next to the fin shape; it is kept up to date with the fins.
+	 */
+	protected JLabel flutterStatusLabel() {
+		flutterStatusLabel = new JLabel();
+		flutterStatusLabel.setToolTipText(trans.get("FinSetConfig.ttip.Flutter"));
+		updateFlutter();
+		return flutterStatusLabel;
+	}
+
 	private void updateFlutter() {
+		if (shearModulusLabel == null && flutterStatusLabel == null) {
+			return;		// Called by the superclass before the labels exist
+		}
 		FinSet fins = (FinSet) component;
 		double shearModulus = fins.getMaterial().getInPlaneShearModulus();
-		if (shearModulus > 0) {
-			shearModulusLabel.setText(UnitGroup.UNITS_SHEAR_MODULUS.getDefaultUnit().toStringUnit(shearModulus));
-		} else {
-			shearModulusLabel.setText(trans.get("FinSetConfig.lbl.ShearModulus.unknown"));
-		}
+		String modulus = shearModulus > 0
+				? UnitGroup.UNITS_SHEAR_MODULUS.getDefaultUnit().toStringUnit(shearModulus)
+				: trans.get("FinSetConfig.lbl.ShearModulus.unknown");
 
 		double velocity = FinFlutter.flutterVelocity(fins, SEA_LEVEL.getMachSpeed(), SEA_LEVEL.getPressure());
-		if (Double.isNaN(velocity)) {
-			flutterVelocityLabel.setText(trans.get("FinSetConfig.lbl.FlutterVelocity.unknown"));
-		} else {
-			flutterVelocityLabel.setText(String.format(trans.get("FinSetConfig.lbl.FlutterVelocity.value"),
-					UnitGroup.UNITS_VELOCITY.getDefaultUnit().toStringUnit(velocity),
-					velocity / SEA_LEVEL.getMachSpeed()));
+		String flutter = Double.isNaN(velocity)
+				? trans.get("FinSetConfig.lbl.FlutterVelocity.unknown")
+				: String.format(trans.get("FinSetConfig.lbl.FlutterVelocity.value"),
+						UnitGroup.UNITS_VELOCITY.getDefaultUnit().toStringUnit(velocity),
+						velocity / SEA_LEVEL.getMachSpeed());
+
+		if (shearModulusLabel != null) {
+			shearModulusLabel.setText(modulus);
+			flutterVelocityLabel.setText(flutter);
+		}
+		if (flutterStatusLabel != null) {
+			flutterStatusLabel.setText(String.format(trans.get("FinSetConfig.lbl.FlutterStatus"), flutter, modulus));
 		}
 	}
 	
@@ -587,6 +614,7 @@ public abstract class FinSetConfig extends RocketComponentConfig {
 
 	private JLabel shearModulusLabel;
 	private JLabel flutterVelocityLabel;
+	private JLabel flutterStatusLabel;
 
 	protected JPanel filletMaterialPanel(){
 	    

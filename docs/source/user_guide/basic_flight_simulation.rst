@@ -106,14 +106,15 @@ Fin Flutter
 
 Fast rockets can lose their fins to *flutter*, a vibration of the fin that grows until the fin breaks. OpenRocket
 estimates the speed at which a fin starts to flutter with Martin's criterion from NACA Technical Note 4197, as
-corrected by Bennett in Apogee's *Peak of Flight* newsletter 615. The flutter velocity depends on the shear modulus of
+corrected by Bennett in Apogee's *Peak of Flight* newsletter 615 (revised December 2025). The results match Bennett's
+reference calculator. The flutter velocity depends on the shear modulus of
 the fin material, the fin shape and thickness, and the air pressure and speed of sound at the rocket's altitude: fins
 flutter at a lower speed in dense air, so the critical moment is usually near maximum velocity at low altitude.
 
 The simulation table has two columns for it (they can be hidden like the other columns):
 
 - **Min. flutter margin** - the lowest margin of the flight, the flutter velocity divided by the airspeed, minus one.
-  Bennett considers a margin under 25 % a poor risk and under 20 % potentially unsafe; a negative margin means the
+  Bennett considers a margin under 20 % a poor risk and under 10 % potentially unsafe; a negative margin means the
   rocket flies faster than its fins' flutter velocity.
 - **Flutter velocity** - the flutter velocity at the moment of that lowest margin.
 
@@ -122,11 +123,16 @@ sets, the one that flutters first counts.
 
 The shear modulus comes from the fin material; the built-in materials have one, and for a custom material you can set it
 in the material dialog. The **Fin Flutter** box in the fin set configuration shows the shear modulus and the flutter
-velocity at sea level (International Standard Atmosphere, 15 °C). If the material has no shear modulus, or the fin is
-swept forward so far that its centroid lies ahead of a quarter of the root chord, no flutter velocity is computed.
+velocity at sea level (International Standard Atmosphere, 15 °C); the **Shape** tab of freeform fins shows the same
+while you edit the outline. Check **Tip-to-tip reinforced** for fins with a layup from tip to tip: as Bennett suggests,
+the flutter velocity is then computed with twice the shear modulus. If the material has no shear modulus, or the fin
+is swept forward so far that its centroid lies ahead of a quarter of the root chord, no flutter velocity is computed.
+
+For fins that are not trapezoids, the taper ratio is that of the trapezoid with the same root chord, height and area,
+as in Bennett's calculator.
 
 Martin's criterion is a guide for preliminary design that was checked against tests up to about Mach 1.5. It does not
-account for tapered thickness, tip-to-tip reinforcement, fillets or the strength of the fin joint, and the shear modulus
+account for tapered thickness, fillets or the strength of the fin joint, and the shear modulus
 of composites and wood varies a lot, so keep a generous margin.
 
 .. _motors-configuration:

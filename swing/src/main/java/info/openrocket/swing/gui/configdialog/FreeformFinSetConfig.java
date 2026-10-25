@@ -464,7 +464,8 @@ public class FreeformFinSetConfig extends FinSetConfig {
 		bottomControlsPanel.add(finPointUndoButton, "gapleft para");
 		bottomControlsPanel.add(finPointRedoButton);
 		bottomControlsPanel.add(liveUpdateCheckbox, "gapleft para");
-		panel.add(bottomControlsPanel, "spanx, alignx left");
+		panel.add(bottomControlsPanel, "spanx, alignx left, wrap");
+		panel.add(flutterStatusLabel(), "spanx, alignx left");
 
 		installFinPointUndoRedoKeyBindings(panel);
 		updateFinPointUndoRedoControls();
