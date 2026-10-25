@@ -1,5 +1,8 @@
 package info.openrocket.core.file.surface;
 
+import java.awt.geom.Area;
+import java.awt.geom.Path2D;
+import java.awt.geom.PathIterator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -114,7 +117,7 @@ public final class OuterSurfaceMesh {
 		for (FinSet finSet : finSets) {
 			addFins(configuration, finSet, fins, warnings);
 		}
-		mergeTouchingFins(fins);
+		mergeCoplanarFins(fins, warnings);
 
 		OuterSurfaceMesh mesh = new OuterSurfaceMesh();
 		new Builder(mesh, bodies, fins, warnings).build();
@@ -188,42 +191,122 @@ public final class OuterSurfaceMesh {
 	}
 
 	/**
-	 * Joins fins that continue each other: the same angle and thickness, one root ending where the other begins, and
-	 * the trailing edge of one and the leading edge of the other leaving that point along the same line. Otherwise
-	 * those two edge faces would lie on top of each other.
+	 * Joins fins that lie in the same plane and touch or overlap, such as fins of two stages that meet at the stage
+	 * joint, into one fin with the union of their outlines. Otherwise their faces would lie on top of or cut through
+	 * each other. Fins that overlap but cannot be joined into one outline on a straight root are left out.
 	 */
-	private static void mergeTouchingFins(List<Fin> fins) {
+	private static void mergeCoplanarFins(List<Fin> fins, WarningSet warnings) {
 		fins.sort((a, b) -> Double.compare(a.xStart, b.xStart));
 		for (int i = 0; i < fins.size(); i++) {
 			for (int k = 0; k < fins.size(); k++) {
 				Fin a = fins.get(i);
 				Fin b = fins.get(k);
-				int n = a.outline.length;
-				if (k == i || Math.abs(a.xEnd - b.xStart) > EPS || angleDistance(a.angle, b.angle) > 1e-12
-						|| Math.abs(a.halfAngle - b.halfAngle) > 1e-12 || Math.abs(a.radius - b.radius) > EPS
-						|| !sameDirection(a.outline[n - 2][0] - a.outline[n - 1][0], a.outline[n - 2][1],
-								b.outline[1][0] - b.outline[0][0], b.outline[1][1])) {
+				if (k == i || angleDistance(a.angle, b.angle) > 1e-12 || Math.abs(a.halfAngle - b.halfAngle) > 1e-12
+						|| Math.abs(a.radius - b.radius) > EPS) {
 					continue;
 				}
-				List<double[]> outline = new ArrayList<>(List.of(a.outline).subList(0, n - 1));
-				for (int j = 1; j < b.outline.length; j++) {
-					double[] p = {b.outline[j][0] + b.xRef - a.xRef, b.outline[j][1]};
-					double[] previous = outline.get(outline.size() - 1);
-					if (Math.abs(p[0] - previous[0]) > EPS || Math.abs(p[1] - previous[1]) > EPS) {
-						outline.add(p);
+				Area union = outlineArea(a);
+				Area other = outlineArea(b);
+				Area common = new Area(union);
+				common.intersect(other);
+				union.add(other);
+				double[][] outline = union.isSingular() ? rootedOutline(union, a.xRef) : null;
+				if (outline == null) {
+					if (!common.isEmpty()) {
+						warn(warnings, "OuterSurface.warning.finOverlap", b.finSet);
+						fins.remove(k);
+						i = -1;
+						break;
 					}
+					continue;
 				}
-				fins.set(i, new Fin(a.finSet, a.region + " " + b.region, a.xStart, b.xEnd, a.angle, a.radius,
-						a.halfAngle, a.xRef, outline.toArray(new double[0][])));
+				fins.set(i, new Fin(a.finSet, a.region + " " + b.region, a.xRef + outline[0][0],
+						a.xRef + outline[outline.length - 1][0], a.angle, a.radius, a.halfAngle, a.xRef, outline));
 				fins.remove(k);
-				i = -1;		// Start over, the joined fin may continue further
+				i = -1;		// Start over, the joined fin may touch further fins
 				break;
 			}
 		}
 	}
 
-	private static boolean sameDirection(double x1, double y1, double x2, double y2) {
-		return Math.abs(x1 * y2 - y1 * x2) <= 1e-9 * Math.hypot(x1, y1) * Math.hypot(x2, y2) && x1 * x2 + y1 * y2 > 0;
+	/** The outline of a fin in the plane of the fin, with x along the rocket and y above the body surface */
+	private static Area outlineArea(Fin fin) {
+		Path2D.Double path = new Path2D.Double();
+		path.moveTo(fin.xRef + fin.outline[0][0], fin.outline[0][1]);
+		for (int i = 1; i < fin.outline.length; i++) {
+			path.lineTo(fin.xRef + fin.outline[i][0], fin.outline[i][1]);
+		}
+		path.closePath();
+		return new Area(path);
+	}
+
+	/**
+	 * The outline of a single area as fin points relative to xRef, from the root leading edge over the fin to the root
+	 * trailing edge, or null if the bottom of the area is not one straight root on the body surface.
+	 */
+	private static double[][] rootedOutline(Area area, double xRef) {
+		List<double[]> loop = new ArrayList<>();
+		double[] coords = new double[6];
+		for (PathIterator it = area.getPathIterator(null); !it.isDone(); it.next()) {
+			int type = it.currentSegment(coords);
+			if (type == PathIterator.SEG_MOVETO || type == PathIterator.SEG_LINETO) {
+				double[] p = {coords[0] - xRef, Math.abs(coords[1]) < EPS ? 0 : coords[1]};
+				if (loop.isEmpty() || Math.abs(p[0] - loop.get(loop.size() - 1)[0]) > EPS
+						|| Math.abs(p[1] - loop.get(loop.size() - 1)[1]) > EPS) {
+					loop.add(p);
+				}
+			}
+		}
+		if (loop.size() > 1 && Math.abs(loop.get(0)[0] - loop.get(loop.size() - 1)[0]) <= EPS
+				&& Math.abs(loop.get(0)[1] - loop.get(loop.size() - 1)[1]) <= EPS) {
+			loop.remove(loop.size() - 1);
+		}
+		final int n = loop.size();
+		int leading = -1;
+		int trailing = -1;
+		for (int i = 0; i < n; i++) {
+			double[] p = loop.get(i);
+			if (p[1] != 0) {
+				continue;
+			}
+			if (leading < 0 || p[0] < loop.get(leading)[0]) {
+				leading = i;
+			}
+			if (trailing < 0 || p[0] > loop.get(trailing)[0]) {
+				trailing = i;
+			}
+		}
+		if (leading < 0 || leading == trailing) {
+			return null;
+		}
+		// One way around the loop is the root; the other is the outline
+		for (int step : new int[]{1, -1}) {
+			List<double[]> path = new ArrayList<>();
+			boolean onRoot = true;
+			for (int i = leading; ; i = (i + step + n) % n) {
+				path.add(loop.get(i));
+				onRoot &= loop.get(i)[1] == 0;
+				if (i == trailing) {
+					break;
+				}
+			}
+			if (!onRoot) {
+				List<double[]> back = new ArrayList<>();
+				for (int i = trailing; ; i = (i + step + n) % n) {
+					back.add(loop.get(i));
+					if (i == leading) {
+						break;
+					}
+				}
+				for (double[] p : back) {
+					if (p[1] != 0) {
+						return null;		// The root side is not straight
+					}
+				}
+				return path.toArray(new double[0][]);
+			}
+		}
+		return null;
 	}
 
 	private static double normalize(double angle) {

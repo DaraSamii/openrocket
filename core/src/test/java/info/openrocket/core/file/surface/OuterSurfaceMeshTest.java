@@ -207,6 +207,63 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 	}
 
 	@Test
+	public void overlappingFinSetsAreJoined() throws Exception {
+		// Two fin sets at the same angles whose roots overlap by 0.16 mm at the notch between them
+		Rocket rocket = new Rocket();
+		AxialStage stage = new AxialStage();
+		rocket.addChild(stage);
+		BodyTube tube = new BodyTube(1.2192, 0.0508);
+		stage.addChild(tube);
+		rocket.enableEvents();
+		FreeformFinSet swept = new FreeformFinSet();
+		swept.setName("swept");
+		swept.setFinCount(4);
+		swept.setThickness(0.003);
+		swept.setPoints(new Coordinate[]{new Coordinate(0, 0), new Coordinate(0.16, 0.05), new Coordinate(0.3, 0.2),
+				new Coordinate(0.34, 0.2), new Coordinate(0.36, 0)});
+		swept.setAxialMethod(AxialMethod.TOP);
+		swept.setAxialOffset(0.7792);
+		tube.addChild(swept);
+		FreeformFinSet small = new FreeformFinSet();
+		small.setName("small");
+		small.setFinCount(4);
+		small.setThickness(0.003);
+		small.setPoints(new Coordinate[]{new Coordinate(0, 0), new Coordinate(0.02, 0.2), new Coordinate(0.06, 0.2),
+				new Coordinate(0.08, 0)});
+		small.setAxialMethod(AxialMethod.TOP);
+		small.setAxialOffset(1.13904);
+		tube.addChild(small);
+
+		WarningSet warnings = new WarningSet();
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(), warnings);
+
+		assertClosed(mesh);
+		assertTrue(warnings.isEmpty(), warnings.toString());
+		assertEquals(4, countRegions(mesh, "swept small"));
+	}
+
+	@Test
+	public void finsOverlappingAboveAGapAreReported() {
+		Rocket rocket = bodyOnly();
+		BodyTube tube = (BodyTube) rocket.getStage(0).getChild(0);
+		// The tip of the first fin reaches over the second, leaving a tunnel above the body between their roots
+		TrapezoidFinSet first = new TrapezoidFinSet(3, 0.1, 0.1, 0.12, 0.05);
+		first.setAxialMethod(AxialMethod.TOP);
+		first.setAxialOffset(0);
+		tube.addChild(first);
+		TrapezoidFinSet second = new TrapezoidFinSet(3, 0.1, 0.1, 0, 0.08);
+		second.setAxialMethod(AxialMethod.TOP);
+		second.setAxialOffset(0.15);
+		tube.addChild(second);
+
+		WarningSet warnings = new WarningSet();
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(), warnings);
+
+		assertClosed(mesh);
+		assertEquals(1, warnings.size());
+	}
+
+	@Test
 	public void cantedFinsAreExportedWithoutCant() {
 		Rocket rocket = bodyOnly();
 		BodyTube tube = (BodyTube) rocket.getStage(0).getChild(0);
