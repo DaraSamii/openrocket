@@ -444,6 +444,34 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 	}
 
 	@Test
+	public void writesUnitsAndScale() throws IOException {
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(bodyOnly().getSelectedConfiguration(), new WarningSet());
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		OuterSurfaceWriter.write(mesh, OuterSurfaceWriter.Format.STL, "Rocket", OuterSurfaceWriter.LengthUnit.MILLIMETER,
+				0.5, out);
+		double maxX = 0;
+		for (String line : out.toString(StandardCharsets.US_ASCII).split("\n")) {
+			if (line.trim().startsWith("vertex")) {
+				maxX = Math.max(maxX, Double.parseDouble(line.trim().split("\\s+")[1]));
+			}
+		}
+		// 300 mm long, at half scale
+		assertEquals(150, maxX, 1e-6);
+
+		out.reset();
+		OuterSurfaceWriter.write(mesh, OuterSurfaceWriter.Format.THREE_MF, "Rocket", OuterSurfaceWriter.LengthUnit.INCH,
+				1, out);
+		String model = unzip(out.toByteArray()).get("3D/3dmodel.model");
+		assertTrue(model.contains("unit=\"inch\""));
+
+		String step = write(mesh, OuterSurfaceWriter.Format.STEP, OuterSurfaceWriter.LengthUnit.INCH);
+		assertTrue(step.contains("CONVERSION_BASED_UNIT('INCH'"));
+		assertTrue(step.contains("LENGTH_MEASURE(25.4)"));
+		assertTrue(write(mesh, OuterSurfaceWriter.Format.STEP, OuterSurfaceWriter.LengthUnit.METER)
+				.contains("SI_UNIT($,.METRE.)"));
+	}
+
+	@Test
 	public void writesStep() throws IOException {
 		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(TestRockets.makeEstesAlphaIII().getSelectedConfiguration(),
 				new WarningSet());
@@ -564,9 +592,24 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 	}
 
 	private static String write(OuterSurfaceMesh mesh, OuterSurfaceWriter.Format format) throws IOException {
+		return write(mesh, format, format.getDefaultUnit());
+	}
+
+	private static String write(OuterSurfaceMesh mesh, OuterSurfaceWriter.Format format,
+								OuterSurfaceWriter.LengthUnit unit) throws IOException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		OuterSurfaceWriter.write(mesh, format, "Rocket", out);
+		OuterSurfaceWriter.write(mesh, format, "Rocket", unit, 1, out);
 		return out.toString(StandardCharsets.US_ASCII);
+	}
+
+	private static Map<String, String> unzip(byte[] data) throws IOException {
+		Map<String, String> entries = new HashMap<>();
+		try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(data))) {
+			for (ZipEntry entry; (entry = zip.getNextEntry()) != null; ) {
+				entries.put(entry.getName(), new String(zip.readAllBytes(), StandardCharsets.UTF_8));
+			}
+		}
+		return entries;
 	}
 
 	private static int count(String text, String part) {

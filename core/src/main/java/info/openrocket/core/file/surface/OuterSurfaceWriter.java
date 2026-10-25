@@ -22,25 +22,70 @@ import java.util.zip.ZipOutputStream;
 public final class OuterSurfaceWriter {
 
 	public enum Format {
-		/** ASCII STL in meters, one solid per component, as OpenFOAM and other CFD tools read it */
-		STL("stl"),
-		/** STEP AP214 faceted boundary representation in millimeters */
-		STEP("step"),
-		/** 3D Manufacturing Format in millimeters */
-		THREE_MF("3mf");
+		/** ASCII STL, one solid per component, as OpenFOAM and other CFD tools read it; STL has no units */
+		STL("stl", LengthUnit.METER),
+		/** STEP AP214 faceted boundary representation */
+		STEP("step", LengthUnit.MILLIMETER),
+		/** 3D Manufacturing Format */
+		THREE_MF("3mf", LengthUnit.MILLIMETER);
 
 		private final String extension;
+		private final LengthUnit defaultUnit;
 
-		Format(String extension) {
+		Format(String extension, LengthUnit defaultUnit) {
 			this.extension = extension;
+			this.defaultUnit = defaultUnit;
 		}
 
 		public String getExtension() {
 			return extension;
 		}
+
+		/** @return the usual unit of the format: meters for STL, as OpenFOAM expects, millimeters otherwise */
+		public LengthUnit getDefaultUnit() {
+			return defaultUnit;
+		}
+	}
+
+	/**
+	 * The length unit of the coordinates in the file. STEP and 3MF also declare it in the file.
+	 */
+	public enum LengthUnit {
+		METER("m", 1, "meter"),
+		CENTIMETER("cm", 100, "centimeter"),
+		MILLIMETER("mm", 1000, "millimeter"),
+		INCH("in", 1 / 0.0254, "inch");
+
+		private final String symbol;
+		private final double perMeter;
+		private final String threeMfName;
+
+		LengthUnit(String symbol, double perMeter, String threeMfName) {
+			this.symbol = symbol;
+			this.perMeter = perMeter;
+			this.threeMfName = threeMfName;
+		}
+
+		public String getSymbol() {
+			return symbol;
+		}
+
+		/** @return how many of this unit make a meter */
+		public double getPerMeter() {
+			return perMeter;
+		}
 	}
 
 	private OuterSurfaceWriter() {
+	}
+
+	/**
+	 * Writes the mesh in the format's usual unit at full scale.
+	 *
+	 * @see #write(OuterSurfaceMesh, Format, String, LengthUnit, double, OutputStream)
+	 */
+	public static void write(OuterSurfaceMesh mesh, Format format, String name, OutputStream out) throws IOException {
+		write(mesh, format, name, format.getDefaultUnit(), 1, out);
 	}
 
 	/**
@@ -49,17 +94,21 @@ public final class OuterSurfaceWriter {
 	 * @param mesh the mesh
 	 * @param format the file format
 	 * @param name the name stored in the file, e.g. the rocket name
+	 * @param unit the length unit of the coordinates
+	 * @param scale a factor applied to the size of the rocket, e.g. 0.1 for a model at 1:10
 	 * @param out the stream to write to; it is not closed
 	 */
-	public static void write(OuterSurfaceMesh mesh, Format format, String name, OutputStream out) throws IOException {
+	public static void write(OuterSurfaceMesh mesh, Format format, String name, LengthUnit unit, double scale,
+							 OutputStream out) throws IOException {
+		final double factor = unit.getPerMeter() * scale;
 		switch (format) {
-			case STL -> writeStl(mesh, out);
-			case STEP -> writeStep(mesh, name, out);
-			case THREE_MF -> write3mf(mesh, name, out);
+			case STL -> writeStl(mesh, factor, out);
+			case STEP -> writeStep(mesh, name, unit, factor, out);
+			case THREE_MF -> write3mf(mesh, name, unit, factor, out);
 		}
 	}
 
-	private static void writeStl(OuterSurfaceMesh mesh, OutputStream out) throws IOException {
+	private static void writeStl(OuterSurfaceMesh mesh, double factor, OutputStream out) throws IOException {
 		Map<String, List<OuterSurfaceMesh.Face>> regions = new LinkedHashMap<>();
 		for (OuterSurfaceMesh.Face face : mesh.getFaces()) {
 			regions.computeIfAbsent(face.region(), k -> new ArrayList<>()).add(face);
@@ -85,7 +134,8 @@ public final class OuterSurfaceWriter {
 					w.write("    outer loop\n");
 					for (int k = 0; k < 3; k++) {
 						double[] p = mesh.getVertices().get(t[i + k]);
-						w.write("      vertex " + number(p[0]) + " " + number(p[1]) + " " + number(p[2]) + "\n");
+						w.write("      vertex " + number(p[0] * factor) + " " + number(p[1] * factor) + " "
+								+ number(p[2] * factor) + "\n");
 					}
 					w.write("    endloop\n");
 					w.write("  endfacet\n");
@@ -96,7 +146,8 @@ public final class OuterSurfaceWriter {
 		w.flush();
 	}
 
-	private static void write3mf(OuterSurfaceMesh mesh, String name, OutputStream out) throws IOException {
+	private static void write3mf(OuterSurfaceMesh mesh, String name, LengthUnit unit, double factor,
+								 OutputStream out) throws IOException {
 		ZipOutputStream zip = new ZipOutputStream(out);
 		Writer w = new OutputStreamWriter(zip, StandardCharsets.UTF_8);
 
@@ -121,7 +172,7 @@ public final class OuterSurfaceWriter {
 		zip.putNextEntry(new ZipEntry("3D/3dmodel.model"));
 		w = new BufferedWriter(new OutputStreamWriter(zip, StandardCharsets.UTF_8));
 		w.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-				+ "<model unit=\"millimeter\" xml:lang=\"en-US\" "
+				+ "<model unit=\"" + unit.threeMfName + "\" xml:lang=\"en-US\" "
 				+ "xmlns=\"http://schemas.microsoft.com/3dmanufacturing/core/2015/02\">\n"
 				+ "  <metadata name=\"Application\">OpenRocket</metadata>\n"
 				+ "  <resources>\n"
@@ -129,8 +180,8 @@ public final class OuterSurfaceWriter {
 				+ "      <mesh>\n"
 				+ "        <vertices>\n");
 		for (double[] p : mesh.getVertices()) {
-			w.write("          <vertex x=\"" + number(p[0] * 1000) + "\" y=\"" + number(p[1] * 1000)
-					+ "\" z=\"" + number(p[2] * 1000) + "\"/>\n");
+			w.write("          <vertex x=\"" + number(p[0] * factor) + "\" y=\"" + number(p[1] * factor)
+					+ "\" z=\"" + number(p[2] * factor) + "\"/>\n");
 		}
 		w.write("        </vertices>\n"
 				+ "        <triangles>\n");
@@ -153,7 +204,8 @@ public final class OuterSurfaceWriter {
 		zip.finish();
 	}
 
-	private static void writeStep(OuterSurfaceMesh mesh, String name, OutputStream out) throws IOException {
+	private static void writeStep(OuterSurfaceMesh mesh, String name, LengthUnit unit, double factor,
+								  OutputStream out) throws IOException {
 		Writer w = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.US_ASCII));
 		String label = step(name);
 		String time = LocalDateTime.now().withNano(0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
@@ -172,7 +224,7 @@ public final class OuterSurfaceWriter {
 				+ "#6=PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design');\n"
 				+ "#7=PRODUCT_DEFINITION('design','',#5,#6);\n"
 				+ "#8=PRODUCT_DEFINITION_SHAPE('','',#7);\n"
-				+ "#9=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));\n"
+				+ stepLengthUnit(unit)
 				+ "#10=(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.));\n"
 				+ "#11=(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT());\n"
 				+ "#12=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-06),#9,'distance_accuracy_value','');\n"
@@ -182,12 +234,12 @@ public final class OuterSurfaceWriter {
 				+ "#15=AXIS2_PLACEMENT_3D('',#14,$,$);\n"
 				+ "#16=PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#4));\n");
 
-		final int firstPoint = 17;
+		final int firstPoint = 20;
 		List<double[]> vertices = mesh.getVertices();
 		for (int i = 0; i < vertices.size(); i++) {
 			double[] p = vertices.get(i);
-			w.write("#" + (firstPoint + i) + "=CARTESIAN_POINT('',(" + stepNumber(p[0] * 1000) + ","
-					+ stepNumber(p[1] * 1000) + "," + stepNumber(p[2] * 1000) + "));\n");
+			w.write("#" + (firstPoint + i) + "=CARTESIAN_POINT('',(" + stepNumber(p[0] * factor) + ","
+					+ stepNumber(p[1] * factor) + "," + stepNumber(p[2] * factor) + "));\n");
 		}
 
 		int id = firstPoint + vertices.size();
@@ -224,6 +276,21 @@ public final class OuterSurfaceWriter {
 		w.write("ENDSEC;\n"
 				+ "END-ISO-10303-21;\n");
 		w.flush();
+	}
+
+	/**
+	 * The length unit as entity #9; an inch is a conversion based unit of 25.4 mm defined in entities #17 to #19.
+	 */
+	private static String stepLengthUnit(LengthUnit unit) {
+		return switch (unit) {
+			case METER -> "#9=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.));\n";
+			case CENTIMETER -> "#9=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.CENTI.,.METRE.));\n";
+			case MILLIMETER -> "#9=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));\n";
+			case INCH -> "#17=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));\n"
+					+ "#18=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n"
+					+ "#19=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#17);\n"
+					+ "#9=(CONVERSION_BASED_UNIT('INCH',#19)LENGTH_UNIT()NAMED_UNIT(#18));\n";
+		};
 	}
 
 	/** Unit normal of a planar polygon by Newell's method */
