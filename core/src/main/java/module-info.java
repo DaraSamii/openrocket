@@ -56,6 +56,7 @@ open module info.openrocket.core {
 	exports info.openrocket.core.file.rocksim.export;
 	exports info.openrocket.core.file.rocksim.importt;
 	exports info.openrocket.core.file.simplesax;
+	exports info.openrocket.core.file.surface;
 	exports info.openrocket.core.file.wavefrontobj;
 	exports info.openrocket.core.file.wavefrontobj.export;
 	exports info.openrocket.core.file.svg.export;
