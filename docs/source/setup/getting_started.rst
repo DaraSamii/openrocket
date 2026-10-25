@@ -65,12 +65,18 @@ The **File Menu** is divided into five divisions by function:
       - :guilabel:`Export as`: Export the project to a different file format, such as Rocksim 10 (`.rkt`).
         :guilabel:`STL outer surface`, :guilabel:`STEP outer surface` and :guilabel:`3MF outer surface` save the
         closed outer surface of the rocket as one watertight solid, for CFD meshing tools such as OpenFOAM's
-        snappyHexMesh, CAD or 3D printing. The nose cone, body tubes, transitions and fins of the selected flight
-        configuration are joined into one surface with x along the rocket axis from the nose tip; internal parts are
-        left out. STL is written in meters with one ``solid`` per component, which OpenFOAM reads as separate
-        patches; STEP (a faceted solid) and 3MF are written in millimeters. Pods, boosters, launch lugs, rail buttons
-        and tube fins are not included, and fins are exported flat with square edges, without cant or fillets; a
-        warning lists what was left out.
+        snappyHexMesh, CAD or 3D printing. The nose cone, body tubes, transitions, fins and rail buttons of the
+        selected flight configuration, and motor tubes where they stick out of the body, are joined into one surface
+        with x along the rocket axis from the nose tip; internal parts are left out. STL has one ``solid`` per
+        component, which OpenFOAM reads as separate patches; STEP is a faceted solid.
+
+        Before choosing the file, a dialog asks for the **Detail** (how finely the body and fins are divided, from
+        Coarse to Very fine), the **Length unit** (STL files have no units: OpenFOAM expects meters and slicers
+        millimeters; STEP and 3MF record the unit), a **Scale** for scaled models such as a 1:10 wind tunnel model,
+        and whether to **Include rail buttons**. The choices are remembered.
+
+        Pods, boosters, launch lugs, tube fins and the screw heads of rail buttons are not included, and fins are
+        exported flat with square edges, without cant or fillets; a warning lists what was left out.
       - :guilabel:`Save decal image`: Save a decal image file used in the project.
       - :guilabel:`Print design info...`: Print or export technical details of the rocket's components, fin set templates, or the rocket design to a `*.pdf`.
 4. **Closing**:
