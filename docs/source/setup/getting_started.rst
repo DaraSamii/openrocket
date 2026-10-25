@@ -63,6 +63,14 @@ The **File Menu** is divided into five divisions by function:
       - :guilabel:`Save as...`: Save the project with a different filename or location.
 3. **Import and export options**:
       - :guilabel:`Export as`: Export the project to a different file format, such as Rocksim 10 (`.rkt`).
+        :guilabel:`STL outer surface`, :guilabel:`STEP outer surface` and :guilabel:`3MF outer surface` save the
+        closed outer surface of the rocket as one watertight solid, for CFD meshing tools such as OpenFOAM's
+        snappyHexMesh, CAD or 3D printing. The nose cone, body tubes, transitions and fins of the selected flight
+        configuration are joined into one surface with x along the rocket axis from the nose tip; internal parts are
+        left out. STL is written in meters with one ``solid`` per component, which OpenFOAM reads as separate
+        patches; STEP (a faceted solid) and 3MF are written in millimeters. Pods, boosters, launch lugs, rail buttons
+        and tube fins are not included, and fins are exported flat with square edges, without cant or fillets; a
+        warning lists what was left out.
       - :guilabel:`Save decal image`: Save a decal image file used in the project.
       - :guilabel:`Print design info...`: Print or export technical details of the rocket's components, fin set templates, or the rocket design to a `*.pdf`.
 4. **Closing**:

@@ -27,6 +27,8 @@ General
 
 * Export component(s) to OBJ file for 3D printing
 
+* Export the closed outer surface of the rocket to STL, STEP or 3MF for CFD meshing and CAD
+
 * Extensible with custom simulation listeners, expressions, and plugins
 
 User Interface
@@ -220,7 +222,7 @@ UI Features
    * - Export 3D design
      - .. cssclass:: or-table-cell, or-table-good
 
-       | Yes (OBJ)
+       | Yes (OBJ, STL, STEP, 3MF)
 
      - .. cssclass:: or-table-cell, or-table-good
 
