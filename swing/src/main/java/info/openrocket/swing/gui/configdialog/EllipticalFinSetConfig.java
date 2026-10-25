@@ -164,6 +164,10 @@ public class EllipticalFinSetConfig extends FinSetConfig {
 		{//// Root fillets
 			panel.add(filletMaterialPanel(), "span, grow, wrap");
 		}
+
+		{//// Fin flutter
+			panel.add(flutterPanel(), "span, grow, wrap");
+		}
 		
 		mainPanel.add(panel, "grow, aligny 0");
 		

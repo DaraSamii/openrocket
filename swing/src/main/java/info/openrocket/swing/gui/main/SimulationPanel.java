@@ -153,6 +153,8 @@ public class SimulationPanel extends JPanel {
 	private static final String COLUMN_ID_TIME_TO_APOGEE = "timeToApogee";
 	private static final String COLUMN_ID_FLIGHT_TIME = "flightTime";
 	private static final String COLUMN_ID_GROUND_HIT_VELOCITY = "groundHitVelocity";
+	private static final String COLUMN_ID_FLUTTER_VELOCITY = "flutterVelocity";
+	private static final String COLUMN_ID_MIN_FLUTTER_MARGIN = "minFlutterMargin";
 	private static final String[] SIMULATION_TABLE_COLUMN_IDS = {
 		COLUMN_ID_STATUS,
 		COLUMN_ID_WARNINGS,
@@ -167,7 +169,9 @@ public class SimulationPanel extends JPanel {
 		COLUMN_ID_MAX_ACCELERATION,
 		COLUMN_ID_TIME_TO_APOGEE,
 		COLUMN_ID_FLIGHT_TIME,
-		COLUMN_ID_GROUND_HIT_VELOCITY
+		COLUMN_ID_GROUND_HIT_VELOCITY,
+		COLUMN_ID_FLUTTER_VELOCITY,
+		COLUMN_ID_MIN_FLUTTER_MARGIN
 	};
 
 	private static final String CARD_HELP = "help";
@@ -1735,6 +1739,38 @@ public class SimulationPanel extends JPanel {
 								return null;
 
 							return data.getGroundHitVelocity();
+						}
+					},
+
+					//// Fin flutter velocity
+					new ValueColumn(trans.get("simpanel.col.Fluttervelocity"),
+							trans.get("simpanel.col.Fluttervelocity.ttip"), UnitGroup.UNITS_VELOCITY) {
+						@Override
+						public Double valueAt(int row) {
+							if (row < 0 || row >= document.getSimulationCount())
+								return null;
+
+							FlightData data = document.getSimulation(row).getSimulatedData();
+							if (data == null)
+								return null;
+
+							return data.getFlutterVelocity();
+						}
+					},
+
+					//// Minimum fin flutter margin
+					new ValueColumn(trans.get("simpanel.col.Minfluttermargin"),
+							trans.get("simpanel.col.Minfluttermargin.ttip"), UnitGroup.UNITS_RELATIVE) {
+						@Override
+						public Double valueAt(int row) {
+							if (row < 0 || row >= document.getSimulationCount())
+								return null;
+
+							FlightData data = document.getSimulation(row).getSimulatedData();
+							if (data == null)
+								return null;
+
+							return data.getMinFlutterMargin();
 						}
 					}
 			);

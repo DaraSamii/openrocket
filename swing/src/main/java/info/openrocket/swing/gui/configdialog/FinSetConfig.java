@@ -1,10 +1,12 @@
 package info.openrocket.swing.gui.configdialog;
 
+import info.openrocket.core.aerodynamics.FinFlutter;
 import info.openrocket.core.document.OpenRocketDocument;
 import info.openrocket.core.l10n.Translator;
 import info.openrocket.core.logging.Markers;
 import info.openrocket.core.material.Material;
 import info.openrocket.core.material.MaterialGroup;
+import info.openrocket.core.models.atmosphere.AtmosphericConditions;
 import info.openrocket.core.preferences.ApplicationPreferences;
 import info.openrocket.core.rocketcomponent.CenteringRing;
 import info.openrocket.core.rocketcomponent.FinSet;
@@ -477,6 +479,47 @@ public abstract class FinSetConfig extends RocketComponentConfig {
 		super.updateFields();
 		if (split != null)
 			split.setEnabled(((FinSet) component).getFinCount() > 1);
+		if (flutterVelocityLabel != null)
+			updateFlutter();
+	}
+
+	/**
+	 * The flutter panel: the shear modulus of the fin material and the flutter velocity at sea level.
+	 */
+	protected JPanel flutterPanel() {
+		JPanel flutterPanel = new JPanel(new MigLayout("", "[][grow]"));
+		flutterPanel.setBorder(BorderFactory.createTitledBorder(trans.get("FinSetConfig.title.Flutter")));
+		flutterPanel.setToolTipText(trans.get("FinSetConfig.ttip.Flutter"));
+
+		flutterPanel.add(new JLabel(trans.get("FinSetConfig.lbl.ShearModulus")));
+		shearModulusLabel = new JLabel();
+		flutterPanel.add(shearModulusLabel, "wrap");
+
+		flutterPanel.add(new JLabel(trans.get("FinSetConfig.lbl.FlutterVelocity")));
+		flutterVelocityLabel = new JLabel();
+		flutterPanel.add(flutterVelocityLabel, "wrap");
+
+		updateFlutter();
+		return flutterPanel;
+	}
+
+	private void updateFlutter() {
+		FinSet fins = (FinSet) component;
+		double shearModulus = fins.getMaterial().getInPlaneShearModulus();
+		if (shearModulus > 0) {
+			shearModulusLabel.setText(UnitGroup.UNITS_SHEAR_MODULUS.getDefaultUnit().toStringUnit(shearModulus));
+		} else {
+			shearModulusLabel.setText(trans.get("FinSetConfig.lbl.ShearModulus.unknown"));
+		}
+
+		double velocity = FinFlutter.flutterVelocity(fins, SEA_LEVEL.getMachSpeed(), SEA_LEVEL.getPressure());
+		if (Double.isNaN(velocity)) {
+			flutterVelocityLabel.setText(trans.get("FinSetConfig.lbl.FlutterVelocity.unknown"));
+		} else {
+			flutterVelocityLabel.setText(String.format(trans.get("FinSetConfig.lbl.FlutterVelocity.value"),
+					UnitGroup.UNITS_VELOCITY.getDefaultUnit().toStringUnit(velocity),
+					velocity / SEA_LEVEL.getMachSpeed()));
+		}
 	}
 	
 	/**
@@ -539,6 +582,12 @@ public abstract class FinSetConfig extends RocketComponentConfig {
 		}
 	}
 	
+	/** International Standard Atmosphere at sea level, where fins flutter at the lowest speed */
+	private static final AtmosphericConditions SEA_LEVEL = new AtmosphericConditions(288.15, 101325, 0);
+
+	private JLabel shearModulusLabel;
+	private JLabel flutterVelocityLabel;
+
 	protected JPanel filletMaterialPanel(){
 	    
 	    JPanel filletPanel = new JPanel(new MigLayout("", "[][65lp::][30lp::]"));

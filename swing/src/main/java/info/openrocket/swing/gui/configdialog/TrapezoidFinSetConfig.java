@@ -222,6 +222,10 @@ public class TrapezoidFinSetConfig extends FinSetConfig {
 			panel.add(filletMaterialPanel(), "span, grow, wrap");
 		}
 
+		{//// Fin flutter
+			panel.add(flutterPanel(), "span, grow, wrap");
+		}
+
 		mainPanel.add(panel, "grow, aligny 0");
 
 		//// General and General properties
