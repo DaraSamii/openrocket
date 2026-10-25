@@ -4,12 +4,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import org.junit.jupiter.api.Test;
 
@@ -253,6 +259,51 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 		assertEquals(3 + 2, area, 1e-12);
 	}
 
+	@Test
+	public void writesStl() throws IOException {
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(TestRockets.makeEstesAlphaIII().getSelectedConfiguration(),
+				new WarningSet());
+		String stl = write(mesh, OuterSurfaceWriter.Format.STL);
+
+		assertTrue(stl.startsWith("solid "));
+		assertEquals(triangleCount(mesh), count(stl, "facet normal"));
+		assertEquals(count(stl, "\nsolid ") + 1, count(stl, "endsolid "));
+	}
+
+	@Test
+	public void writes3mf() throws IOException {
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(TestRockets.makeEstesAlphaIII().getSelectedConfiguration(),
+				new WarningSet());
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		OuterSurfaceWriter.write(mesh, OuterSurfaceWriter.Format.THREE_MF, "Alpha <III>", out);
+
+		Map<String, String> entries = new HashMap<>();
+		try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(out.toByteArray()))) {
+			for (ZipEntry entry; (entry = zip.getNextEntry()) != null; ) {
+				entries.put(entry.getName(), new String(zip.readAllBytes(), StandardCharsets.UTF_8));
+			}
+		}
+		assertEquals(Set.of("[Content_Types].xml", "_rels/.rels", "3D/3dmodel.model"), entries.keySet());
+		String model = entries.get("3D/3dmodel.model");
+		assertTrue(model.contains("unit=\"millimeter\""));
+		assertTrue(model.contains("name=\"Alpha &lt;III&gt;\""));
+		assertEquals(mesh.getVertices().size(), count(model, "<vertex "));
+		assertEquals(triangleCount(mesh), count(model, "<triangle "));
+	}
+
+	@Test
+	public void writesStep() throws IOException {
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(TestRockets.makeEstesAlphaIII().getSelectedConfiguration(),
+				new WarningSet());
+		String step = write(mesh, OuterSurfaceWriter.Format.STEP);
+
+		assertTrue(step.startsWith("ISO-10303-21;"));
+		assertTrue(step.endsWith("END-ISO-10303-21;\n"));
+		assertTrue(step.contains("SI_UNIT(.MILLI.,.METRE.)"));
+		assertEquals(mesh.getFaces().size(), count(step, "=FACE_SURFACE("));
+		assertEquals(1, count(step, "=CLOSED_SHELL("));
+	}
+
 	/** A 40 mm wide, 300 mm long body tube */
 	private static Rocket bodyOnly() {
 		Rocket rocket = new Rocket();
@@ -348,5 +399,27 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 
 	private static void union(Map<Integer, Integer> parent, int a, int b) {
 		parent.put(find(parent, a), find(parent, b));
+	}
+
+	private static int triangleCount(OuterSurfaceMesh mesh) {
+		int count = 0;
+		for (OuterSurfaceMesh.Face face : mesh.getFaces()) {
+			count += face.triangles().length / 3;
+		}
+		return count;
+	}
+
+	private static String write(OuterSurfaceMesh mesh, OuterSurfaceWriter.Format format) throws IOException {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		OuterSurfaceWriter.write(mesh, format, "Rocket", out);
+		return out.toString(StandardCharsets.US_ASCII);
+	}
+
+	private static int count(String text, String part) {
+		int count = 0;
+		for (int i = text.indexOf(part); i >= 0; i = text.indexOf(part, i + 1)) {
+			count++;
+		}
+		return count;
 	}
 }
