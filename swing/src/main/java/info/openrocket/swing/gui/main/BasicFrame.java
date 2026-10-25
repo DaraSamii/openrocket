@@ -73,6 +73,7 @@ import info.openrocket.core.preferences.ApplicationPreferences;
 import com.formdev.flatlaf.util.SystemFileChooser.FileFilter;
 
 import info.openrocket.swing.gui.choosers.OptionChooser;
+import info.openrocket.swing.gui.choosers.OuterSurfaceOptionChooser;
 import info.openrocket.swing.gui.choosers.StorageOptionChooser;
 import info.openrocket.swing.gui.util.UpdateInfoRunner;
 import net.miginfocom.swing.MigLayout;
@@ -2055,9 +2056,12 @@ private static final Translator trans = Application.getTranslator();
 			String name = rocket.getName() == null || rocket.getName().isBlank() ? "rocket" : rocket.getName();
 			File parentDir = defaultDir != null ? defaultDir : new File(System.getProperty("user.home", "."));
 			chooser.setSelectedFile(new File(parentDir, name + "." + format.getExtension()));
+			OuterSurfaceOptionChooser options = new OuterSurfaceOptionChooser(format);
+			chooser.setOptionsPanel(options);
 			if (chooser.showSaveDialog(BasicFrame.this) != NativeFileChooser.APPROVE_OPTION) {
 				return;
 			}
+			options.storePreferences();
 
 			File selected = chooser.getSelectedFile();
 			File file = format == OuterSurfaceWriter.Format.STEP && selected.getName().toLowerCase(Locale.ROOT).endsWith(".stp")
@@ -2069,9 +2073,10 @@ private static final Translator trans = Application.getTranslator();
 
 			WarningSet warnings = new WarningSet();
 			try {
-				OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(), warnings);
+				OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(),
+						options.getMeshOptions(), warnings);
 				try (OutputStream out = new BufferedOutputStream(new FileOutputStream(file))) {
-					OuterSurfaceWriter.write(mesh, format, name, out);
+					OuterSurfaceWriter.write(mesh, format, name, options.getUnit(), options.getScale(), out);
 				}
 				log.info(Markers.USER_MARKER, "Exported outer surface to {}", file.getAbsolutePath());
 			} catch (IOException | IllegalStateException ex) {
