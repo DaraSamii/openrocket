@@ -22,9 +22,12 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -34,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -73,6 +77,8 @@ import info.openrocket.swing.gui.choosers.StorageOptionChooser;
 import info.openrocket.swing.gui.util.UpdateInfoRunner;
 import net.miginfocom.swing.MigLayout;
 
+import info.openrocket.core.file.surface.OuterSurfaceMesh;
+import info.openrocket.core.file.surface.OuterSurfaceWriter;
 import info.openrocket.core.file.wavefrontobj.export.OBJExportOptions;
 import info.openrocket.core.file.wavefrontobj.export.OBJExporterFactory;
 import info.openrocket.core.logging.ErrorSet;
@@ -596,6 +602,11 @@ private static final Translator trans = Application.getTranslator();
 			}
 		});
 		exportSubMenu.add(exportOBJ);
+
+		//////		Export the closed outer surface
+		addOuterSurfaceExport(exportSubMenu, "main.menu.file.exportAs.STL", OuterSurfaceWriter.Format.STL);
+		addOuterSurfaceExport(exportSubMenu, "main.menu.file.exportAs.STEP", OuterSurfaceWriter.Format.STEP);
+		addOuterSurfaceExport(exportSubMenu, "main.menu.file.exportAs.3MF", OuterSurfaceWriter.Format.THREE_MF);
 
 		//////		Export SVG profiles
 		JMenuItem exportSvgProfiles = new JMenuItem(trans.get("main.menu.file.exportAs.SVGProfiles"));
@@ -2012,6 +2023,75 @@ private static final Translator trans = Application.getTranslator();
 		}
 
 		return true;
+	}
+
+	private void addOuterSurfaceExport(JMenu menu, String key, OuterSurfaceWriter.Format format) {
+		JMenuItem item = new JMenuItem(trans.get(key));
+		item.setIcon(Icons.deriveMenuIcon(Icons.EXPORT_3D));
+		item.getAccessibleContext().setAccessibleDescription(trans.get(key + ".desc"));
+		item.addActionListener(e -> exportOuterSurfaceAction(format));
+		menu.add(item);
+	}
+
+	/**
+	 * Export the closed outer surface of the selected configuration as STL, STEP or 3MF.
+	 *
+	 * @param format the file format
+	 */
+	private void exportOuterSurfaceAction(OuterSurfaceWriter.Format format) {
+		try {
+			NativeFileChooser chooser = new NativeFileChooser();
+			chooser.setFileFilter(switch (format) {
+				case STL -> FileHelper.STL_FILTER;
+				case STEP -> FileHelper.STEP_FILTER;
+				case THREE_MF -> FileHelper.THREE_MF_FILTER;
+			});
+			chooser.setDialogTitle(trans.get("main.menu.file.exportAs.outerSurface.title"));
+			SwingPreferences swingPrefs = (SwingPreferences) Application.getPreferences();
+			File defaultDir = swingPrefs.getDefaultDirectory();
+			if (defaultDir != null) {
+				chooser.setCurrentDirectory(defaultDir);
+			}
+			String name = rocket.getName() == null || rocket.getName().isBlank() ? "rocket" : rocket.getName();
+			File parentDir = defaultDir != null ? defaultDir : new File(System.getProperty("user.home", "."));
+			chooser.setSelectedFile(new File(parentDir, name + "." + format.getExtension()));
+			if (chooser.showSaveDialog(BasicFrame.this) != NativeFileChooser.APPROVE_OPTION) {
+				return;
+			}
+
+			File selected = chooser.getSelectedFile();
+			File file = format == OuterSurfaceWriter.Format.STEP && selected.getName().toLowerCase(Locale.ROOT).endsWith(".stp")
+					? selected : FileHelper.forceExtension(selected, format.getExtension());
+			if (!FileHelper.confirmWrite(file, selected, BasicFrame.this)) {
+				return;
+			}
+			swingPrefs.setDefaultDirectory(chooser.getCurrentDirectory());
+
+			WarningSet warnings = new WarningSet();
+			try {
+				OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(), warnings);
+				try (OutputStream out = new BufferedOutputStream(new FileOutputStream(file))) {
+					OuterSurfaceWriter.write(mesh, format, name, out);
+				}
+				log.info(Markers.USER_MARKER, "Exported outer surface to {}", file.getAbsolutePath());
+			} catch (IOException | IllegalStateException ex) {
+				log.warn("Failed to export the outer surface", ex);
+				JOptionPane.showMessageDialog(BasicFrame.this,
+						String.format(trans.get("main.menu.file.exportAs.outerSurface.error"), ex.getMessage()),
+						trans.get("main.menu.file.exportAs.outerSurface.title"),
+						JOptionPane.ERROR_MESSAGE);
+				return;
+			}
+
+			if (!warnings.isEmpty()) {
+				WarningDialog.showWarnings(this,
+						trans.get("BasicFrame.WarningDialog.saving.txt1") + " '" + file.getName() + "'.",
+						trans.get("BasicFrame.WarningDialog.saving.title"),
+						warnings);
+			}
+		} finally {
+			restoreFocus();
+		}
 	}
 
 	/**
