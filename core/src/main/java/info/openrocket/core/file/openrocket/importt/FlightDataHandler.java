@@ -108,6 +108,8 @@ class FlightDataHandler extends AbstractElementHandler {
 			double launchRodVelocity = Double.NaN;
 			double deploymentVelocity = Double.NaN;
 			double optimumDelay = Double.NaN;
+			double flutterVelocity = Double.NaN;
+			double minFlutterMargin = Double.NaN;
 
 			try {
 				maxAltitude = DocumentConfig.stringToDouble(attributes.get("maxaltitude"));
@@ -149,9 +151,18 @@ class FlightDataHandler extends AbstractElementHandler {
 				optimumDelay = DocumentConfig.stringToDouble(attributes.get("optimumdelay"));
 			} catch (NumberFormatException ignore) {
 			}
+			try {
+				flutterVelocity = DocumentConfig.stringToDouble(attributes.get("fluttervelocity"));
+			} catch (NumberFormatException ignore) {
+			}
+			try {
+				minFlutterMargin = DocumentConfig.stringToDouble(attributes.get("minfluttermargin"));
+			} catch (NumberFormatException ignore) {
+			}
 
 			data = new FlightData(maxAltitude, maxVelocity, maxAcceleration, maxMach,
 					timeToApogee, flightTime, groundHitVelocity, launchRodVelocity, deploymentVelocity, optimumDelay);
+			data.setFlutterSummary(flutterVelocity, minFlutterMargin);
 		}
 		
 		data.getWarningSet().addAll(warningSet);

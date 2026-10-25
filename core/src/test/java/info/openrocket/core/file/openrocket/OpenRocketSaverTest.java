@@ -750,6 +750,41 @@ public class OpenRocketSaverTest {
 	}
 
 	@Test
+	public void testFlutterSummaryWithoutSimulationData() {
+		Rocket rocket = new Rocket();
+		AxialStage stage = new AxialStage();
+		rocket.addChild(stage);
+		stage.addChild(new BodyTube(0.3, 0.025, 0.002));
+		rocket.enableEvents();
+		OpenRocketDocument doc = OpenRocketDocumentFactory.createDocumentFromRocket(rocket);
+
+		FlightDataBranch branch = new FlightDataBranch("Sustainer", FlightDataType.TYPE_TIME,
+				FlightDataType.TYPE_FLUTTER_VELOCITY, FlightDataType.TYPE_FLUTTER_MARGIN);
+		double[][] points = {{0, 300, Double.NaN}, {1, 310, 1.5}, {2, 320, 0.4}, {3, 330, 0.9}};
+		for (double[] p : points) {
+			branch.addPoint();
+			branch.setValue(FlightDataType.TYPE_TIME, p[0]);
+			branch.setValue(FlightDataType.TYPE_FLUTTER_VELOCITY, p[1]);
+			branch.setValue(FlightDataType.TYPE_FLUTTER_MARGIN, p[2]);
+		}
+		branch.immute();
+		FlightData flightData = new FlightData(branch);
+		assertEquals(0.4, flightData.getMinFlutterMargin(), 0);
+		assertEquals(320, flightData.getFlutterVelocity(), 0);
+
+		Simulation sim = new Simulation(doc, rocket, Simulation.Status.UPTODATE, "flutter test",
+				new SimulationOptions(), Collections.emptyList(), flightData);
+		doc.addSimulation(sim);
+		StorageOptions opts = new StorageOptions();
+		opts.setSaveSimulationData(false);
+		File file = saveRocket(doc, opts);
+
+		FlightData loaded = loadRocket(file.getPath()).getSimulations().get(0).getSimulatedData();
+		assertEquals(0.4, loaded.getMinFlutterMargin(), 1e-6);
+		assertEquals(320, loaded.getFlutterVelocity(), 1e-6);
+	}
+
+	@Test
 	public void testDatapointPrecision() {
 		// Build a minimal rocket
 		Rocket rocket = new Rocket();

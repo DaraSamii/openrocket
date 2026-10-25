@@ -237,6 +237,16 @@ public class FlightDataType implements Comparable<FlightDataType>, Groupable<Fli
 			trans.get("FlightDataType.TYPE_REYNOLDS_NUMBER"),
 			"R", UnitGroup.UNITS_COEFFICIENT,
 			FlightDataTypeGroup.CHARACTERISTIC_NUMBERS, 1);
+	//// Fin flutter velocity
+	public static final FlightDataType TYPE_FLUTTER_VELOCITY = newType("flutter_velocity",
+			trans.get("FlightDataType.TYPE_FLUTTER_VELOCITY"), "Vfl",
+			UnitGroup.UNITS_VELOCITY,
+			FlightDataTypeGroup.CHARACTERISTIC_NUMBERS, 2);
+	//// Fin flutter margin
+	public static final FlightDataType TYPE_FLUTTER_MARGIN = newType("flutter_margin",
+			trans.get("FlightDataType.TYPE_FLUTTER_MARGIN"), "Mfl",
+			UnitGroup.UNITS_RELATIVE,
+			FlightDataTypeGroup.CHARACTERISTIC_NUMBERS, 3);
 
 	// Thrust and drag
 	//// Thrust
@@ -439,6 +449,8 @@ public class FlightDataType implements Comparable<FlightDataType>, Groupable<Fli
 			TYPE_STABILITY,
 			TYPE_MACH_NUMBER,
 			TYPE_REYNOLDS_NUMBER,
+			TYPE_FLUTTER_VELOCITY,
+			TYPE_FLUTTER_MARGIN,
 			TYPE_THRUST_FORCE,
 			TYPE_THRUST_WEIGHT_RATIO,
 			TYPE_DRAG_FORCE,

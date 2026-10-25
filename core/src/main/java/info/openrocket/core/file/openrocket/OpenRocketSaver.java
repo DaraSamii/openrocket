@@ -492,6 +492,10 @@ public class OpenRocketSaver extends RocketSaver {
 				str += " deploymentvelocity=\"" + TextUtil.doubleToString(data.getDeploymentVelocity(), TextUtil.STORAGE_DECIMAL_PLACES) + "\"";
 			if (!Double.isNaN(data.getOptimumDelay()))
 				str += " optimumdelay=\"" + TextUtil.doubleToString(data.getOptimumDelay(), TextUtil.STORAGE_DECIMAL_PLACES) + "\"";
+			if (!Double.isNaN(data.getFlutterVelocity()))
+				str += " fluttervelocity=\"" + TextUtil.doubleToString(data.getFlutterVelocity(), TextUtil.STORAGE_DECIMAL_PLACES) + "\"";
+			if (!Double.isNaN(data.getMinFlutterMargin()))
+				str += " minfluttermargin=\"" + TextUtil.doubleToString(data.getMinFlutterMargin(), TextUtil.STORAGE_DECIMAL_PLACES) + "\"";
 			str += ">";
 			writeln(str);
 			indent++;

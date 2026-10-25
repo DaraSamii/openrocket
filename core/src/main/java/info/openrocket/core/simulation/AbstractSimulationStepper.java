@@ -11,12 +11,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import info.openrocket.core.aerodynamics.AerodynamicForces;
+import info.openrocket.core.aerodynamics.FinFlutter;
 import info.openrocket.core.aerodynamics.FlightConditions;
 import info.openrocket.core.motor.MotorConfiguration;
 import info.openrocket.core.masscalc.MassCalculator;
 import info.openrocket.core.masscalc.RigidBody;
 import info.openrocket.core.models.atmosphere.AtmosphericConditions;
 import info.openrocket.core.rocketcomponent.ComponentAssembly;
+import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
 import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.simulation.exception.SimulationException;
@@ -474,6 +476,24 @@ public abstract class AbstractSimulationStepper implements SimulationStepper {
 						flightConditions.getAtmosphericConditions().getDensity());
 				dataBranch.setValue(FlightDataType.TYPE_SPEED_OF_SOUND,
 						flightConditions.getAtmosphericConditions().getMachSpeed());
+
+				// The fin set that flutters first decides
+				double flutterVelocity = Double.NaN;
+				for (RocketComponent component : status.getConfiguration().getActiveInstances().keySet()) {
+					if (component instanceof FinSet fins) {
+						double v = FinFlutter.flutterVelocity(fins,
+								flightConditions.getAtmosphericConditions().getMachSpeed(),
+								flightConditions.getAtmosphericConditions().getPressure());
+						if (!Double.isNaN(v) && (Double.isNaN(flutterVelocity) || v < flutterVelocity)) {
+							flutterVelocity = v;
+						}
+					}
+				}
+				dataBranch.setValue(FlightDataType.TYPE_FLUTTER_VELOCITY, flutterVelocity);
+				if (flightConditions.getVelocity() > 0) {
+					dataBranch.setValue(FlightDataType.TYPE_FLUTTER_MARGIN,
+							flutterVelocity / flightConditions.getVelocity() - 1);
+				}
 			}
 
 			DampingMomentComponents dampingMoment = computeDampingMomentCoefficientComponents(status, dataBranch);

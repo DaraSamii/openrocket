@@ -54,6 +54,8 @@ public class FlightData {
 	private double launchRodVelocity = Double.NaN;
 	private double deploymentVelocity = Double.NaN;
 	private double optimumDelay = Double.NaN;
+	private double flutterVelocity = Double.NaN;
+	private double minFlutterMargin = Double.NaN;
 
 	/**
 	 * Create a FlightData object with no content.  The resulting object is mutable.
@@ -191,6 +193,32 @@ public class FlightData {
 		return optimumDelay;
 	}
 
+	/**
+	 * @return the fin flutter velocity when the flutter margin was lowest, or NaN if unknown
+	 */
+	public double getFlutterVelocity() {
+		return flutterVelocity;
+	}
+
+	/**
+	 * @return the lowest fin flutter margin of the flight (flutter velocity over airspeed, minus one), or NaN if unknown
+	 */
+	public double getMinFlutterMargin() {
+		return minFlutterMargin;
+	}
+
+	/**
+	 * Sets the fin flutter summary, for flights loaded without their data.
+	 *
+	 * @param flutterVelocity the fin flutter velocity when the flutter margin was lowest
+	 * @param minFlutterMargin the lowest fin flutter margin
+	 */
+	public void setFlutterSummary(double flutterVelocity, double minFlutterMargin) {
+		mutable.check();
+		this.flutterVelocity = flutterVelocity;
+		this.minFlutterMargin = minFlutterMargin;
+	}
+
 
 	/**
 	 * Calculate the max. altitude/velocity/acceleration, time to apogee, flight time
@@ -205,6 +233,7 @@ public class FlightData {
 		maxVelocity = branch.getMaximum(FlightDataType.TYPE_VELOCITY_TOTAL);
 		maxMachNumber = branch.getMaximum(FlightDataType.TYPE_MACH_NUMBER);
 		flightTime = branch.getLast(FlightDataType.TYPE_TIME);
+		calculateFlutterSummary(branch);
 		
 		// Time to apogee
 		final List<Double> time = branch.getView(FlightDataType.TYPE_TIME);
@@ -296,7 +325,29 @@ public class FlightData {
 		clone.groundHitVelocity = groundHitVelocity;
 		clone.launchRodVelocity = launchRodVelocity;
 		clone.deploymentVelocity = deploymentVelocity;
+		clone.flutterVelocity = flutterVelocity;
+		clone.minFlutterMargin = minFlutterMargin;
 		return clone;
+	}
+
+	/**
+	 * Find the lowest fin flutter margin and the flutter velocity at that time.
+	 */
+	private void calculateFlutterSummary(FlightDataBranch branch) {
+		minFlutterMargin = Double.NaN;
+		flutterVelocity = Double.NaN;
+		List<Double> margins = branch.getView(FlightDataType.TYPE_FLUTTER_MARGIN);
+		List<Double> velocities = branch.getView(FlightDataType.TYPE_FLUTTER_VELOCITY);
+		if (margins == null || velocities == null) {
+			return;
+		}
+		for (int i = 0; i < margins.size() && i < velocities.size(); i++) {
+			Double margin = margins.get(i);
+			if (margin != null && !margin.isNaN() && (Double.isNaN(minFlutterMargin) || margin < minFlutterMargin)) {
+				minFlutterMargin = margin;
+				flutterVelocity = velocities.get(i);
+			}
+		}
 	}
 
 	/**

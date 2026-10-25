@@ -1,18 +1,31 @@
 package info.openrocket.core.aerodynamics;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
 import info.openrocket.core.database.Databases;
+import info.openrocket.core.document.OpenRocketDocumentFactory;
+import info.openrocket.core.document.Simulation;
 import info.openrocket.core.material.Material;
 import info.openrocket.core.material.MaterialGroup;
 import info.openrocket.core.rocketcomponent.EllipticalFinSet;
+import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FreeformFinSet;
+import info.openrocket.core.rocketcomponent.Rocket;
+import info.openrocket.core.rocketcomponent.RocketComponent;
 import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
+import info.openrocket.core.simulation.FlightData;
+import info.openrocket.core.simulation.FlightDataBranch;
+import info.openrocket.core.simulation.FlightDataType;
 import info.openrocket.core.util.BaseTestCase;
 import info.openrocket.core.util.Coordinate;
+import info.openrocket.core.util.TestRockets;
 
 public class FinFlutterTest extends BaseTestCase {
 	private static final double INCH = 0.0254;
@@ -82,5 +95,51 @@ public class FinFlutterTest extends BaseTestCase {
 		// The velocity scales with the thickness ratio to the power 3/2 and with one over the root of the pressure
 		assertEquals(Math.pow(2, 1.5), thick / thin, 1e-9);
 		assertEquals(2, FinFlutter.flutterVelocity(fins, 340, 101325 / 4.0) / thick, 1e-9);
+	}
+
+	@Test
+	public void simulationStoresFlutterVelocityAndMargin() throws Exception {
+		Rocket rocket = TestRockets.makeEstesAlphaIII();
+		FinSet fins = null;
+		for (RocketComponent component : rocket) {
+			if (component instanceof FinSet finSet) {
+				fins = finSet;
+			}
+		}
+		assertNotNull(fins);
+		fins.setMaterial(Databases.findMaterial(Material.Type.BULK, "Balsa", 170, 0.23e9, MaterialGroup.WOODS));
+		Simulation simulation = new Simulation(OpenRocketDocumentFactory.createDocumentFromRocket(rocket), rocket);
+		simulation.setFlightConfigurationId(TestRockets.TEST_FCID_0);
+		simulation.getOptions().setISAAtmosphere(true);
+		simulation.getOptions().setTimeStep(0.05);
+		simulation.simulate();
+
+		FlightData data = simulation.getSimulatedData();
+		FlightDataBranch branch = data.getBranch(0);
+		List<Double> flutter = branch.get(FlightDataType.TYPE_FLUTTER_VELOCITY);
+		List<Double> margin = branch.get(FlightDataType.TYPE_FLUTTER_MARGIN);
+		List<Double> soundSpeed = branch.get(FlightDataType.TYPE_SPEED_OF_SOUND);
+		List<Double> pressure = branch.get(FlightDataType.TYPE_AIR_PRESSURE);
+		List<Double> mach = branch.get(FlightDataType.TYPE_MACH_NUMBER);
+
+		double lowest = Double.NaN;
+		int checked = 0;
+		for (int i = 0; i < flutter.size(); i++) {
+			if (Double.isNaN(soundSpeed.get(i)) || Double.isNaN(margin.get(i))) {
+				continue;
+			}
+			assertEquals(FinFlutter.flutterVelocity(fins, soundSpeed.get(i), pressure.get(i)), flutter.get(i), 1e-6);
+			double airspeed = mach.get(i) * soundSpeed.get(i);
+			assertEquals(flutter.get(i) / airspeed - 1, margin.get(i), 1e-6 * Math.max(1, margin.get(i)));
+			if (Double.isNaN(lowest) || margin.get(i) < lowest) {
+				lowest = margin.get(i);
+			}
+			checked++;
+		}
+		assertTrue(checked > 10);
+		assertEquals(lowest, data.getMinFlutterMargin(), 1e-12);
+		assertFalse(Double.isNaN(data.getFlutterVelocity()));
+		// A balsa Alpha III on its test motor stays below its flutter velocity
+		assertTrue(data.getMinFlutterMargin() > 0, "margin " + data.getMinFlutterMargin());
 	}
 }
