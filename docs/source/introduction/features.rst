@@ -27,6 +27,8 @@ General
 
 * Export component(s) to OBJ file for 3D printing
 
+* Fin flutter velocity and safety margin along the flight
+
 * Extensible with custom simulation listeners, expressions, and plugins
 
 User Interface
@@ -91,8 +93,6 @@ Below are a few major features that are under consideration:
 * Better support for transonic and supersonic simulations (:doc:`help needed! </introduction/contribute>`)
 
 * Monte Carlo simulation for dispersion analysis
-
-* Simulate fin flutter
 
 * Customized support for hybrid rocket motors and water rockets
 
