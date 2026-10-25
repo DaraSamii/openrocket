@@ -15,6 +15,7 @@ import info.openrocket.core.logging.Warning;
 import info.openrocket.core.logging.WarningSet;
 import info.openrocket.core.rocketcomponent.FinSet;
 import info.openrocket.core.rocketcomponent.FlightConfiguration;
+import info.openrocket.core.rocketcomponent.InnerTube;
 import info.openrocket.core.rocketcomponent.InstanceContext;
 import info.openrocket.core.rocketcomponent.LaunchLug;
 import info.openrocket.core.rocketcomponent.RailButton;
@@ -30,31 +31,83 @@ import info.openrocket.core.util.Transformation;
 /**
  * The closed outer surface of a rocket as one watertight mesh, for CFD meshing tools and CAD.
  * <p>
- * The nose cone, body tubes and transitions on the rocket axis form one surface of revolution that follows the
- * largest radius at each station; steps between parts become flat rings and the aft end is closed with a flat base.
- * Fins are joined to the body exactly: the side faces of a flat fin meet a cylinder along lines of constant angle,
- * so the body mesh gets a matching hole under every fin and the fin faces reuse the vertices around it.
- * Every face is a planar polygon with its vertices in counter-clockwise order seen from outside.
- * Coordinates are in meters with x along the rocket axis, as in OpenRocket.
+ * The nose cone, body tubes and transitions on the rocket axis, and inner tubes on the axis where they stick out,
+ * form one surface of revolution that follows the largest radius at each station; steps between parts become flat
+ * rings and the aft end is closed with a flat base. Fins are joined to the body exactly: the side faces of a flat fin
+ * meet a cylinder along lines of constant angle, so the body mesh gets a matching hole under every fin and the fin
+ * faces reuse the vertices around it. Rail buttons sit in a patch of the body that is triangulated to meet their base.
+ * Every face has its vertices in counter-clockwise order seen from outside, and all but the patches around rail buttons
+ * are planar. Coordinates are in meters with x along the rocket axis, as in OpenRocket.
  * <p>
- * Internal parts are left out. Pods, boosters, launch lugs, rail buttons and tube fins are left out with a warning;
- * fin cant, fillets and rounded or airfoil cross-sections are not modeled.
+ * Internal parts are left out. Pods, boosters, launch lugs and tube fins are left out with a warning; fin cant, fillets
+ * and rounded or airfoil cross-sections are not modeled.
  */
 public final class OuterSurfaceMesh {
 	private static final Translator trans = Application.getTranslator();
 
-	/** Divisions around the rocket */
-	static final int ANGULAR_DIVISIONS = 128;
-	/** Stations along each nose cone and transition */
-	static final int PROFILE_DIVISIONS = 100;
 	/** Lengths closer than this, in meters, are the same */
 	private static final double EPS = 1e-9;
+	/** Width of the body patch around a rail button, relative to the button's base diameter */
+	private static final double BUTTON_PATCH = 1.4;
 
 	/**
-	 * A planar face of the mesh.
+	 * How finely the surface is divided.
+	 */
+	public enum Detail {
+		COARSE(48, 4, 50, 16),
+		NORMAL(96, 3, 100, 24),
+		FINE(192, 2, 200, 32),
+		VERY_FINE(384, 1.5, 400, 48);
+
+		private final int angularDivisions;
+		private final double axialAspect;
+		private final int profileDivisions;
+		private final int buttonDivisions;
+
+		Detail(int angularDivisions, double axialAspect, int profileDivisions, int buttonDivisions) {
+			this.angularDivisions = angularDivisions;
+			this.axialAspect = axialAspect;
+			this.profileDivisions = profileDivisions;
+			this.buttonDivisions = buttonDivisions;
+		}
+
+		/** @return the divisions around the rocket */
+		public int getAngularDivisions() {
+			return angularDivisions;
+		}
+
+		/** @return how much longer than wide the body faces may be */
+		public double getAxialAspect() {
+			return axialAspect;
+		}
+
+		/** @return the stations along each nose cone and transition */
+		public int getProfileDivisions() {
+			return profileDivisions;
+		}
+
+		/** @return the divisions around a rail button */
+		public int getButtonDivisions() {
+			return buttonDivisions;
+		}
+	}
+
+	/**
+	 * What to build.
 	 *
-	 * @param loop vertex indices, counter-clockwise seen from outside
-	 * @param triangles the face split into triangles, as indices into {@code loop}
+	 * @param detail how finely to divide the surface
+	 * @param railButtons whether to include the rail buttons
+	 */
+	public record Options(Detail detail, boolean railButtons) {
+		public static final Options DEFAULT = new Options(Detail.NORMAL, true);
+	}
+
+	/**
+	 * A face of the mesh.
+	 *
+	 * @param loop the boundary as vertex indices, counter-clockwise seen from outside; planar except for the patches
+	 *             around rail buttons, which are single triangles
+	 * @param triangles the face split into triangles, as vertex indices; they may use vertices inside the face
 	 * @param region name of the rocket component the face belongs to
 	 */
 	public record Face(int[] loop, int[] triangles, String region) {
@@ -76,16 +129,28 @@ public final class OuterSurfaceMesh {
 	}
 
 	/**
+	 * Builds the outer surface of the active stages of a configuration with the default options.
+	 *
+	 * @see #build(FlightConfiguration, Options, WarningSet)
+	 */
+	public static OuterSurfaceMesh build(FlightConfiguration configuration, WarningSet warnings) {
+		return build(configuration, Options.DEFAULT, warnings);
+	}
+
+	/**
 	 * Builds the outer surface of the active stages of a configuration.
 	 *
 	 * @param configuration the flight configuration whose active parts are used
+	 * @param options what to build
 	 * @param warnings receives the parts that are left out or simplified
 	 * @return the mesh
 	 * @throws IllegalStateException if the configuration has no body on the rocket axis
 	 */
-	public static OuterSurfaceMesh build(FlightConfiguration configuration, WarningSet warnings) {
+	public static OuterSurfaceMesh build(FlightConfiguration configuration, Options options, WarningSet warnings) {
 		List<Body> bodies = new ArrayList<>();
 		List<FinSet> finSets = new ArrayList<>();
+		List<RailButton> railButtons = new ArrayList<>();
+		List<Body> offAxisTubes = new ArrayList<>();
 		for (Map.Entry<RocketComponent, ArrayList<InstanceContext>> entry : configuration.getActiveInstances().entrySet()) {
 			RocketComponent component = entry.getKey();
 			if (component instanceof SymmetricComponent symmetric) {
@@ -96,13 +161,27 @@ public final class OuterSurfaceMesh {
 						break;
 					}
 					if (symmetric.getLength() > EPS) {
-						bodies.add(new Body(symmetric, location.getX()));
+						bodies.add(new Body(symmetric, location.getX(), symmetric.getLength(), symmetric, 0));
+					}
+				}
+			} else if (component instanceof InnerTube tube && tube.getLength() > EPS) {
+				// A motor tube only shows where it sticks out of the body, which the largest radius takes care of
+				for (InstanceContext context : entry.getValue()) {
+					CoordinateIF location = context.getLocation();
+					Body body = new Body(tube, location.getX(), tube.getLength(), null, tube.getOuterRadius());
+					if (Math.hypot(location.getY(), location.getZ()) > EPS) {
+						offAxisTubes.add(body);
+					} else {
+						bodies.add(body);
 					}
 				}
 			} else if (component instanceof FinSet finSet) {
 				finSets.add(finSet);
-			} else if (component instanceof LaunchLug || component instanceof RailButton
-					|| component instanceof TubeFinSet) {
+			} else if (component instanceof RailButton button) {
+				if (options.railButtons()) {
+					railButtons.add(button);
+				}
+			} else if (component instanceof LaunchLug || component instanceof TubeFinSet) {
 				warn(warnings, "OuterSurface.warning.notIncluded", component);
 			}
 		}
@@ -112,20 +191,42 @@ public final class OuterSurfaceMesh {
 		// Keep the order of the rocket for stable output
 		bodies.sort((a, b) -> Double.compare(a.x0, b.x0));
 		finSets.sort((a, b) -> Double.compare(a.getAxialFront(), b.getAxialFront()));
+		railButtons.sort((a, b) -> Double.compare(a.getAxialOffset(), b.getAxialOffset()));
+		warnProtrudingTubes(bodies, offAxisTubes, warnings);
 
+		List<Footprint> footprints = new ArrayList<>();
 		List<Fin> fins = new ArrayList<>();
 		for (FinSet finSet : finSets) {
 			addFins(configuration, finSet, fins, warnings);
 		}
 		mergeCoplanarFins(fins, warnings);
+		footprints.addAll(fins);
+		for (RailButton button : railButtons) {
+			addButtons(configuration, button, footprints, warnings);
+		}
 
 		OuterSurfaceMesh mesh = new OuterSurfaceMesh();
-		new Builder(mesh, bodies, fins, warnings).build();
+		new Builder(mesh, options.detail(), bodies, footprints, warnings).build();
 		return mesh;
 	}
 
 	private static void warn(WarningSet warnings, String key, RocketComponent component) {
 		warnings.add(Warning.fromString(String.format(trans.get(key), component.getName())));
+	}
+
+	/** Warns about clustered motor tubes that stick out of the body, which are not included */
+	private static void warnProtrudingTubes(List<Body> bodies, List<Body> offAxisTubes, WarningSet warnings) {
+		double front = Double.POSITIVE_INFINITY;
+		double back = Double.NEGATIVE_INFINITY;
+		for (Body body : bodies) {
+			front = Math.min(front, body.x0);
+			back = Math.max(back, body.x1());
+		}
+		for (Body tube : offAxisTubes) {
+			if (tube.x0 < front - EPS || tube.x1() > back + EPS) {
+				warn(warnings, "OuterSurface.warning.offAxis", tube.component);
+			}
+		}
 	}
 
 	/** Collects the fins of a fin set that can be joined to the body. */
@@ -190,6 +291,27 @@ public final class OuterSurfaceMesh {
 		}
 	}
 
+	/** Collects the rail buttons of a component that sit on the rocket's main body */
+	private static void addButtons(FlightConfiguration configuration, RailButton button, List<Footprint> footprints,
+								   WarningSet warnings) {
+		final double baseRadius = (button.getBaseHeight() > EPS ? button.getOuterDiameter()
+				: Math.min(button.getInnerDiameter(), button.getOuterDiameter())) / 2;
+		for (InstanceContext context : configuration.getActiveInstances().get(button)) {
+			CoordinateIF location = context.getLocation();
+			double radius = Math.hypot(location.getY(), location.getZ());
+			double halfWidth = BUTTON_PATCH * baseRadius;
+			if (baseRadius < EPS || button.getTotalHeight() < EPS || halfWidth > 0.8 * radius
+					|| Math.abs(context.getParentTransform().transform(Coordinate.ZERO).getY()) > EPS
+					|| Math.abs(context.getParentTransform().transform(Coordinate.ZERO).getZ()) > EPS) {
+				warn(warnings, "OuterSurface.warning.buttonNotPlaced", button);
+				return;
+			}
+			footprints.add(new Button(button, location.getX() - halfWidth, location.getX() + halfWidth,
+					location.getX(), normalize(Math.atan2(location.getZ(), location.getY())),
+					Math.asin(halfWidth / radius), radius, baseRadius));
+		}
+	}
+
 	/**
 	 * Joins fins that lie in the same plane and touch or overlap, such as fins of two stages that meet at the stage
 	 * joint, into one fin with the union of their outlines. Otherwise their faces would lie on top of or cut through
@@ -229,15 +351,22 @@ public final class OuterSurfaceMesh {
 		}
 	}
 
-	/** The outline of a fin in the plane of the fin, with x along the rocket and y above the body surface */
+	/**
+	 * The outline of a fin in the plane of the fin, with x along the rocket and y above the body surface. Points are
+	 * snapped to a nanometer, so that edges two fins share are exactly the same and join without a slit.
+	 */
 	private static Area outlineArea(Fin fin) {
 		Path2D.Double path = new Path2D.Double();
-		path.moveTo(fin.xRef + fin.outline[0][0], fin.outline[0][1]);
+		path.moveTo(snap(fin.xRef + fin.outline[0][0]), snap(fin.outline[0][1]));
 		for (int i = 1; i < fin.outline.length; i++) {
-			path.lineTo(fin.xRef + fin.outline[i][0], fin.outline[i][1]);
+			path.lineTo(snap(fin.xRef + fin.outline[i][0]), snap(fin.outline[i][1]));
 		}
 		path.closePath();
 		return new Area(path);
+	}
+
+	private static double snap(double value) {
+		return Math.rint(value / EPS) * EPS;
 	}
 
 	/**
@@ -260,6 +389,20 @@ public final class OuterSurfaceMesh {
 		if (loop.size() > 1 && Math.abs(loop.get(0)[0] - loop.get(loop.size() - 1)[0]) <= EPS
 				&& Math.abs(loop.get(0)[1] - loop.get(loop.size() - 1)[1]) <= EPS) {
 			loop.remove(loop.size() - 1);
+		}
+		// Remove spikes that go out and back along the same line, and points in the middle of a straight edge
+		for (int i = 0; loop.size() > 3 && i < loop.size(); ) {
+			double[] prev = loop.get((i + loop.size() - 1) % loop.size());
+			double[] cur = loop.get(i);
+			double[] next = loop.get((i + 1) % loop.size());
+			double cross = (cur[0] - prev[0]) * (next[1] - prev[1]) - (cur[1] - prev[1]) * (next[0] - prev[0]);
+			double scale = Math.hypot(cur[0] - prev[0], cur[1] - prev[1]) * Math.hypot(next[0] - cur[0], next[1] - cur[1]);
+			if (Math.abs(cross) <= 1e-9 * scale && cur[1] != 0) {
+				loop.remove(i);
+				i = Math.max(0, i - 1);
+			} else {
+				i++;
+			}
 		}
 		final int n = loop.size();
 		int leading = -1;
@@ -321,73 +464,46 @@ public final class OuterSurfaceMesh {
 	}
 
 	/**
-	 * Splits a simple polygon into triangles by ear clipping.
-	 *
-	 * @param u first coordinates of the polygon, counter-clockwise
-	 * @param v second coordinates
-	 * @return triangles as indices into the polygon
-	 * @throws IllegalStateException if the polygon cannot be split, e.g. because it crosses itself
+	 * A body of revolution on the rocket axis from x0 over the given length: the shape of a symmetric component, or a
+	 * tube of the given radius.
 	 */
-	static int[] triangulate(double[] u, double[] v) {
-		final int n = u.length;
-		List<Integer> remaining = new ArrayList<>();
-		for (int i = 0; i < n; i++) {
-			remaining.add(i);
-		}
-		int[] result = new int[3 * (n - 2)];
-		int count = 0;
-		while (remaining.size() > 3) {
-			boolean clipped = false;
-			for (int k = 0; k < remaining.size(); k++) {
-				int a = remaining.get((k + remaining.size() - 1) % remaining.size());
-				int b = remaining.get(k);
-				int c = remaining.get((k + 1) % remaining.size());
-				if (cross(u, v, a, b, c) <= 1e-18 || containsOther(u, v, remaining, a, b, c)) {
-					continue;
-				}
-				result[count++] = a;
-				result[count++] = b;
-				result[count++] = c;
-				remaining.remove(k);
-				clipped = true;
-				break;
-			}
-			if (!clipped) {
-				throw new IllegalStateException("Polygon cannot be split into triangles");
-			}
-		}
-		result[count++] = remaining.get(0);
-		result[count++] = remaining.get(1);
-		result[count] = remaining.get(2);
-		return result;
-	}
-
-	private static double cross(double[] u, double[] v, int a, int b, int c) {
-		return (u[b] - u[a]) * (v[c] - v[a]) - (v[b] - v[a]) * (u[c] - u[a]);
-	}
-
-	/** Whether another polygon vertex lies in or on the triangle a, b, c */
-	private static boolean containsOther(double[] u, double[] v, List<Integer> remaining, int a, int b, int c) {
-		for (int p : remaining) {
-			if (p == a || p == b || p == c
-					|| (u[p] == u[a] && v[p] == v[a]) || (u[p] == u[c] && v[p] == v[c])) {
-				continue;
-			}
-			if (cross(u, v, a, b, p) >= -1e-18 && cross(u, v, b, c, p) >= -1e-18 && cross(u, v, c, a, p) >= -1e-18) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/** A body of revolution on the rocket axis, starting at x0 */
-	private record Body(SymmetricComponent component, double x0) {
+	private record Body(RocketComponent component, double x0, double length, SymmetricComponent shape,
+						double tubeRadius) {
 		double x1() {
-			return x0 + component.getLength();
+			return x0 + length;
 		}
 
 		double radius(double x) {
-			return component.getRadius(Math.max(0, Math.min(component.getLength(), x - x0)));
+			return shape == null ? tubeRadius : shape.getRadius(Math.max(0, Math.min(length, x - x0)));
+		}
+
+		double maxRadius() {
+			return shape == null ? tubeRadius : Math.max(shape.getForeRadius(), shape.getAftRadius());
+		}
+	}
+
+	/**
+	 * Something that sits on a cylinder of the body over a rectangle in (x, angle): the body gets a hole there.
+	 */
+	private interface Footprint {
+		RocketComponent component();
+
+		double xStart();
+
+		double xEnd();
+
+		double angle();
+
+		double halfAngle();
+
+		double radius();
+
+		/**
+		 * @return whether the hole has no vertices between its sides on its fore and aft ends, as under a fin, whose
+		 * end faces meet the body along a straight chord
+		 */
+		default boolean closedEnds() {
+			return true;
 		}
 	}
 
@@ -395,8 +511,23 @@ public final class OuterSurfaceMesh {
 	 * One fin, or fins joined into one. Its root runs from xStart to xEnd on a cylinder of the given radius, centered
 	 * on the angle; the outline points are relative to xRef and to the body surface.
 	 */
-	private record Fin(FinSet finSet, String region, double xStart, double xEnd, double angle, double radius, double halfAngle,
-					   double xRef, double[][] outline) {
+	private record Fin(FinSet finSet, String region, double xStart, double xEnd, double angle, double radius,
+					   double halfAngle, double xRef, double[][] outline) implements Footprint {
+		@Override
+		public RocketComponent component() {
+			return finSet;
+		}
+	}
+
+	/**
+	 * One rail button centered at xCenter and the angle, with a patch of the body around it.
+	 */
+	private record Button(RailButton component, double xStart, double xEnd, double xCenter, double angle,
+						  double halfAngle, double radius, double baseRadius) implements Footprint {
+		@Override
+		public boolean closedEnds() {
+			return false;
+		}
 	}
 
 	/** A point of the body profile; region is the component of the profile segment that starts here */
@@ -405,35 +536,52 @@ public final class OuterSurfaceMesh {
 
 	private static final class Builder {
 		private final OuterSurfaceMesh mesh;
+		private final Detail detail;
 		private final List<Body> bodies;
-		private final List<Fin> fins;
+		private final List<Footprint> footprints;
 		private final WarningSet warnings;
+		/** Longest edge along the body */
+		private final double axialSpacing;
+		/** Size of the triangles on fins */
+		private final double finSpacing;
 
 		private final List<ProfilePoint> profile = new ArrayList<>();
 		private double[] angles;
-		/** Vertex of each profile point and angle, -1 inside a fin; a ring on the axis has one vertex */
+		/** Vertex of each profile point and angle, -1 inside a footprint; a ring on the axis has one vertex */
 		private int[][] ringVertices;
-		/** Per fin, the profile points at the start and end of its root and the angle indices of its two sides */
+		/** Per footprint, the profile points at its ends and the angle indices of its two sides */
 		private final List<int[]> holes = new ArrayList<>();
-		/** Cells (profile point, angle index) of the body that are covered by a fin root */
+		/** Cells (profile point, angle index) of the body that are covered by a footprint */
 		private final Set<Long> holeCells = new HashSet<>();
-		/** Ring vertices inside a fin, which are left out */
+		/** Ring vertices inside a footprint, which are left out */
 		private final Set<Long> hidden = new HashSet<>();
 
-		Builder(OuterSurfaceMesh mesh, List<Body> bodies, List<Fin> fins, WarningSet warnings) {
+		Builder(OuterSurfaceMesh mesh, Detail detail, List<Body> bodies, List<Footprint> footprints,
+				WarningSet warnings) {
 			this.mesh = mesh;
+			this.detail = detail;
 			this.bodies = bodies;
-			this.fins = new ArrayList<>(fins);
+			this.footprints = new ArrayList<>(footprints);
 			this.warnings = warnings;
+			double maxRadius = 0;
+			for (Body body : bodies) {
+				maxRadius = Math.max(maxRadius, body.maxRadius());
+			}
+			finSpacing = 2 * Math.PI * maxRadius / detail.getAngularDivisions();
+			axialSpacing = detail.getAxialAspect() * finSpacing;
 		}
 
 		void build() {
 			buildProfile();
-			placeFins();
+			placeFootprints();
 			buildRings();
 			addBodyFaces();
-			for (int i = 0; i < fins.size(); i++) {
-				addFinFaces(fins.get(i), holes.get(i));
+			for (int i = 0; i < footprints.size(); i++) {
+				if (footprints.get(i) instanceof Fin fin) {
+					addFinFaces(fin, holes.get(i));
+				} else {
+					addButtonFaces((Button) footprints.get(i), holes.get(i));
+				}
 			}
 		}
 
@@ -442,18 +590,28 @@ public final class OuterSurfaceMesh {
 			for (Body body : bodies) {
 				stations.add(body.x0);
 				stations.add(body.x1());
-				if (body.component instanceof Transition) {
+				if (body.shape instanceof Transition) {
 					// Cosine spacing puts more stations near the ends, where noses curve most
-					for (int i = 1; i < PROFILE_DIVISIONS; i++) {
-						stations.add(body.x0 + body.component.getLength() * (1 - Math.cos(Math.PI * i / PROFILE_DIVISIONS)) / 2);
+					int divisions = detail.getProfileDivisions();
+					for (int i = 1; i < divisions; i++) {
+						stations.add(body.x0 + body.length * (1 - Math.cos(Math.PI * i / divisions)) / 2);
 					}
 				}
 			}
-			for (Fin fin : fins) {
-				stations.add(fin.xStart);
-				stations.add(fin.xEnd);
+			for (Footprint footprint : footprints) {
+				stations.add(footprint.xStart());
+				stations.add(footprint.xEnd());
+				if (footprint instanceof Button button) {
+					// Sides of the patch as finely divided as the base of the button, so its triangles stay small
+					double spacing = 2 * Math.PI * button.baseRadius / detail.getButtonDivisions();
+					int pieces = (int) Math.ceil((button.xEnd - button.xStart) / spacing);
+					for (int k = 1; k < pieces; k++) {
+						stations.add(button.xStart + (button.xEnd - button.xStart) * k / pieces);
+					}
+				}
 			}
 			stations.sort(null);
+			stations = refine(stations);
 
 			double previous = Double.NEGATIVE_INFINITY;
 			for (double x : stations) {
@@ -481,6 +639,25 @@ public final class OuterSurfaceMesh {
 			}
 		}
 
+		/** Adds stations so that no two neighbors on the body are further apart than the axial spacing */
+		private List<Double> refine(List<Double> stations) {
+			List<Double> refined = new ArrayList<>();
+			for (int i = 0; i < stations.size(); i++) {
+				double x = stations.get(i);
+				if (i > 0) {
+					double previous = stations.get(i - 1);
+					int pieces = (int) Math.ceil((x - previous) / axialSpacing - 1e-9);
+					if (pieces > 1 && largest((x + previous) / 2, false) != null) {
+						for (int k = 1; k < pieces; k++) {
+							refined.add(previous + (x - previous) * k / pieces);
+						}
+					}
+				}
+				refined.add(x);
+			}
+			return refined;
+		}
+
 		private void addProfilePoint(double x, double r, Body region) {
 			if (!profile.isEmpty()) {
 				ProfilePoint last = profile.get(profile.size() - 1);
@@ -506,48 +683,50 @@ public final class OuterSurfaceMesh {
 			return best;
 		}
 
-		/** Chooses the angles around the rocket and the hole of each fin, leaving out fins that do not fit. */
-		private void placeFins() {
-			List<Fin> placed = new ArrayList<>();
+		/** Chooses the angles around the rocket and the hole of each footprint, leaving out those that do not fit. */
+		private void placeFootprints() {
+			List<Footprint> placed = new ArrayList<>();
 			List<int[]> rootPoints = new ArrayList<>();
-			for (Fin fin : fins) {
-				int[] root = findRoot(fin);
+			for (Footprint footprint : footprints) {
+				int[] root = findRoot(footprint);
 				if (root == null) {
-					warn(warnings, "OuterSurface.warning.finNotJoined", fin.finSet);
+					warn(warnings, footprint instanceof Fin ? "OuterSurface.warning.finNotJoined"
+							: "OuterSurface.warning.buttonNotPlaced", footprint.component());
 					continue;
 				}
-				placed.add(fin);
+				placed.add(footprint);
 				rootPoints.add(root);
 				double[] candidate = computeAngles(placed);
 				if (!holesFit(placed, rootPoints, candidate)) {
 					placed.remove(placed.size() - 1);
 					rootPoints.remove(rootPoints.size() - 1);
-					warn(warnings, "OuterSurface.warning.finOverlap", fin.finSet);
+					warn(warnings, footprint instanceof Fin ? "OuterSurface.warning.finOverlap"
+							: "OuterSurface.warning.buttonNotPlaced", footprint.component());
 				}
 			}
-			fins.clear();
-			fins.addAll(placed);
+			footprints.clear();
+			footprints.addAll(placed);
 			angles = computeAngles(placed);
 			holesFit(placed, rootPoints, angles);
 		}
 
-		/** The profile points at both ends of the fin root, if the whole root lies on a cylinder of the fin's radius */
-		private int[] findRoot(Fin fin) {
+		/** The profile points at both ends of a footprint, if it lies wholly on a cylinder of its radius */
+		private int[] findRoot(Footprint footprint) {
 			int start = -1;
 			int end = -1;
 			for (int i = 0; i < profile.size(); i++) {
 				ProfilePoint p = profile.get(i);
-				if (p.x < fin.xStart - EPS || p.x > fin.xEnd + EPS) {
+				if (p.x < footprint.xStart() - EPS || p.x > footprint.xEnd() + EPS) {
 					continue;
 				}
-				boolean onCylinder = Math.abs(p.r - fin.radius) < 1e-7;
+				boolean onCylinder = Math.abs(p.r - footprint.radius()) < 1e-7;
 				if (start < 0) {
-					if (Math.abs(p.x - fin.xStart) < EPS && onCylinder) {
+					if (Math.abs(p.x - footprint.xStart()) < EPS && onCylinder) {
 						start = i;
 					}
 				} else if (!onCylinder) {
 					return null;
-				} else if (Math.abs(p.x - fin.xEnd) < EPS) {
+				} else if (Math.abs(p.x - footprint.xEnd()) < EPS) {
 					end = i;
 					break;
 				}
@@ -555,15 +734,18 @@ public final class OuterSurfaceMesh {
 			return start < 0 || end < 0 ? null : new int[]{start, end};
 		}
 
-		private double[] computeAngles(List<Fin> placed) {
-			final double step = 2 * Math.PI / ANGULAR_DIVISIONS;
+		private double[] computeAngles(List<Footprint> placed) {
+			final int divisions = detail.getAngularDivisions();
+			final double step = 2 * Math.PI / divisions;
 			List<Double> list = new ArrayList<>();
-			for (int i = 0; i < ANGULAR_DIVISIONS; i++) {
+			for (int i = 0; i < divisions; i++) {
 				double a = i * step;
 				boolean free = true;
-				for (Fin fin : placed) {
-					// Keep regular lines out of the fin hole, and away from its edges to avoid slivers
-					if (angleDistance(a, fin.angle) < fin.halfAngle + step / 4) {
+				for (Footprint footprint : placed) {
+					// Keep regular lines away from the sides of a hole to avoid slivers, and out of closed ones
+					double distance = angleDistance(a, footprint.angle());
+					if (Math.abs(distance - footprint.halfAngle()) < step / 4
+							|| (footprint.closedEnds() && distance < footprint.halfAngle())) {
 						free = false;
 						break;
 					}
@@ -572,9 +754,9 @@ public final class OuterSurfaceMesh {
 					list.add(a);
 				}
 			}
-			for (Fin fin : placed) {
-				list.add(normalize(fin.angle - fin.halfAngle));
-				list.add(normalize(fin.angle + fin.halfAngle));
+			for (Footprint footprint : placed) {
+				list.add(normalize(footprint.angle() - footprint.halfAngle()));
+				list.add(normalize(footprint.angle() + footprint.halfAngle()));
 			}
 			list.sort(null);
 			List<Double> unique = new ArrayList<>();
@@ -590,24 +772,26 @@ public final class OuterSurfaceMesh {
 		}
 
 		/**
-		 * Fills in the holes of the fins and the ring vertices they hide, and checks that no fin covers a cell or a
-		 * side vertex of another fin.
+		 * Fills in the holes of the footprints and the ring vertices they hide, and checks that no footprint covers a
+		 * cell or a side vertex of another.
 		 */
-		private boolean holesFit(List<Fin> placed, List<int[]> rootPoints, double[] candidate) {
+		private boolean holesFit(List<Footprint> placed, List<int[]> rootPoints, double[] candidate) {
 			holes.clear();
 			holeCells.clear();
 			hidden.clear();
 			Set<Long> sides = new HashSet<>();
 			for (int i = 0; i < placed.size(); i++) {
-				Fin fin = placed.get(i);
-				int minus = indexOf(candidate, normalize(fin.angle - fin.halfAngle));
-				int plus = indexOf(candidate, normalize(fin.angle + fin.halfAngle));
+				Footprint footprint = placed.get(i);
+				int minus = indexOf(candidate, normalize(footprint.angle() - footprint.halfAngle()));
+				int plus = indexOf(candidate, normalize(footprint.angle() + footprint.halfAngle()));
 				int[] root = rootPoints.get(i);
 				for (int p = root[0]; p <= root[1]; p++) {
 					sides.add(cell(p, minus));
 					sides.add(cell(p, plus));
-					// Lines of other fins that pass under this fin
-					for (int j = (minus + 1) % candidate.length; j != plus; j = (j + 1) % candidate.length) {
+					// Lines that pass under this footprint
+					boolean end = p == root[0] || p == root[1];
+					for (int j = (minus + 1) % candidate.length; j != plus && (!end || footprint.closedEnds());
+						 j = (j + 1) % candidate.length) {
 						hidden.add(cell(p, j));
 					}
 					for (int j = minus; p < root[1] && j != plus; j = (j + 1) % candidate.length) {
@@ -696,11 +880,11 @@ public final class OuterSurfaceMesh {
 				int c = ringVertex(p + 1, to);
 				int d = ringVertex(p + 1, from);
 				if (axisBefore) {
-					addFace(new int[]{a, c, d}, new int[]{0, 1, 2}, region);
+					addPolygon(new int[]{a, c, d}, region);
 				} else if (axisAfter) {
-					addFace(new int[]{a, b, c}, new int[]{0, 1, 2}, region);
+					addPolygon(new int[]{a, b, c}, region);
 				} else {
-					addFace(new int[]{a, b, c, d}, new int[]{0, 1, 2, 0, 2, 3}, region);
+					addPolygon(new int[]{a, b, c, d}, region);
 				}
 				return;
 			}
@@ -721,12 +905,12 @@ public final class OuterSurfaceMesh {
 				boolean advanceTop = b == bottom.size() - 1
 						|| (t < top.size() - 1 && top.get(t + 1) <= bottom.get(b + 1));
 				if (advanceTop) {
-					addFace(new int[]{ringVertex(p, top.get(t)), ringVertex(p, top.get(t + 1)),
-							ringVertex(p + 1, bottom.get(b))}, new int[]{0, 1, 2}, region);
+					addPolygon(new int[]{ringVertex(p, top.get(t)), ringVertex(p, top.get(t + 1)),
+							ringVertex(p + 1, bottom.get(b))}, region);
 					t++;
 				} else {
-					addFace(new int[]{ringVertex(p, top.get(t)), ringVertex(p + 1, bottom.get(b + 1)),
-							ringVertex(p + 1, bottom.get(b))}, new int[]{0, 1, 2}, region);
+					addPolygon(new int[]{ringVertex(p, top.get(t)), ringVertex(p + 1, bottom.get(b + 1)),
+							ringVertex(p + 1, bottom.get(b))}, region);
 					b++;
 				}
 			}
@@ -740,85 +924,295 @@ public final class OuterSurfaceMesh {
 			final double halfThickness = fin.radius * Math.sin(fin.halfAngle);
 			final String region = fin.region;
 
-			// The outline above the root, from the leading edge to the trailing edge, on both sides
-			final int tipCount = fin.outline.length - 2;
-			final int plusTip = mesh.vertices.size();
-			for (int i = 1; i <= tipCount; i++) {
-				mesh.vertices.add(finVertex(fin, fin.outline[i], halfThickness));
+			// The outline above the root, split into pieces no longer than the fin spacing
+			List<double[]> outline = new ArrayList<>();
+			for (int i = 0; i < fin.outline.length - 1; i++) {
+				double[] a = fin.outline[i];
+				double[] b = fin.outline[i + 1];
+				int pieces = Math.max(1, (int) Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / finSpacing - 1e-9));
+				for (int k = i == 0 ? 1 : 0; k < pieces; k++) {
+					outline.add(new double[]{a[0] + (b[0] - a[0]) * k / pieces, a[1] + (b[1] - a[1]) * k / pieces});
+				}
 			}
-			final int minusTip = mesh.vertices.size();
-			for (int i = 1; i <= tipCount; i++) {
-				mesh.vertices.add(finVertex(fin, fin.outline[i], -halfThickness));
-			}
+			// The outline now runs from the first point above the leading edge root to the last before the trailing one
+			final int tipCount = outline.size();
 
 			// Plus side: along the root, then back along the outline; counter-clockwise in (x, radial)
 			final int rootCount = rootEnd - rootStart + 1;
 			final int size = rootCount + tipCount;
-			int[] plusLoop = new int[size];
-			int[] minusLoop = new int[size];
 			double[] u = new double[size];
 			double[] v = new double[size];
 			final double rootHeight = fin.radius * Math.cos(fin.halfAngle);
 			for (int i = 0; i < rootCount; i++) {
-				plusLoop[i] = ringVertex(rootStart + i, plusIndex);
-				minusLoop[i] = ringVertex(rootStart + i, minusIndex);
 				u[i] = profile.get(rootStart + i).x;
 				v[i] = rootHeight;
 			}
 			for (int i = 0; i < tipCount; i++) {
-				int outlineIndex = tipCount - i;
-				plusLoop[rootCount + i] = plusTip + outlineIndex - 1;
-				minusLoop[rootCount + i] = minusTip + outlineIndex - 1;
-				u[rootCount + i] = fin.xRef + fin.outline[outlineIndex][0];
-				v[rootCount + i] = fin.radius + fin.outline[outlineIndex][1];
+				double[] point = outline.get(tipCount - 1 - i);
+				u[rootCount + i] = fin.xRef + point[0];
+				v[rootCount + i] = fin.radius + point[1];
 			}
-			int[] triangles;
+			SurfaceTriangulator.Result side;
 			try {
-				triangles = triangulate(u, v);
+				side = SurfaceTriangulator.triangulate(u, v, finSpacing);
 			} catch (IllegalStateException e) {
 				throw new IllegalStateException("The outline of " + region + " crosses itself", e);
 			}
-			addFace(plusLoop, triangles, region);
 
-			// Minus side: the same polygon seen from the other side
-			int[] reversedLoop = new int[size];
+			// The vertices of each side: the root ones are on the body, the others are new
+			final int pointCount = side.u().length;
+			int[] plus = new int[pointCount];
+			int[] minus = new int[pointCount];
+			for (int i = 0; i < pointCount; i++) {
+				if (i < rootCount) {
+					plus[i] = ringVertex(rootStart + i, plusIndex);
+					minus[i] = ringVertex(rootStart + i, minusIndex);
+				} else {
+					plus[i] = mesh.vertices.size();
+					mesh.vertices.add(finVertex(fin, side.u()[i], side.v()[i], halfThickness));
+					minus[i] = mesh.vertices.size();
+					mesh.vertices.add(finVertex(fin, side.u()[i], side.v()[i], -halfThickness));
+				}
+			}
+			int[] t = side.triangles();
+			int[] plusTriangles = new int[t.length];
+			int[] minusTriangles = new int[t.length];
+			for (int i = 0; i < t.length; i += 3) {
+				plusTriangles[i] = plus[t[i]];
+				plusTriangles[i + 1] = plus[t[i + 1]];
+				plusTriangles[i + 2] = plus[t[i + 2]];
+				// The minus side is seen from the other side
+				minusTriangles[i] = minus[t[i]];
+				minusTriangles[i + 1] = minus[t[i + 2]];
+				minusTriangles[i + 2] = minus[t[i + 1]];
+			}
+			int[] plusLoop = Arrays.copyOf(plus, size);
+			int[] minusLoop = new int[size];
 			for (int i = 0; i < size; i++) {
-				reversedLoop[i] = minusLoop[size - 1 - i];
+				minusLoop[i] = minus[size - 1 - i];
 			}
-			int[] reversedTriangles = new int[triangles.length];
-			for (int i = 0; i < triangles.length; i += 3) {
-				reversedTriangles[i] = size - 1 - triangles[i];
-				reversedTriangles[i + 1] = size - 1 - triangles[i + 2];
-				reversedTriangles[i + 2] = size - 1 - triangles[i + 1];
-			}
-			addFace(reversedLoop, reversedTriangles, region);
+			mesh.faces.add(new Face(plusLoop, plusTriangles, region));
+			mesh.faces.add(new Face(minusLoop, minusTriangles, region));
 
 			// Edges: from the root leading edge over the outline to the root trailing edge
 			int[] plusEdge = new int[tipCount + 2];
 			int[] minusEdge = new int[tipCount + 2];
-			plusEdge[0] = ringVertex(rootStart, plusIndex);
-			minusEdge[0] = ringVertex(rootStart, minusIndex);
+			plusEdge[0] = plus[0];
+			minusEdge[0] = minus[0];
 			for (int i = 0; i < tipCount; i++) {
-				plusEdge[i + 1] = plusTip + i;
-				minusEdge[i + 1] = minusTip + i;
+				plusEdge[i + 1] = plus[size - 1 - i];
+				minusEdge[i + 1] = minus[size - 1 - i];
 			}
-			plusEdge[tipCount + 1] = ringVertex(rootEnd, plusIndex);
-			minusEdge[tipCount + 1] = ringVertex(rootEnd, minusIndex);
+			plusEdge[tipCount + 1] = plus[rootCount - 1];
+			minusEdge[tipCount + 1] = minus[rootCount - 1];
 			for (int i = 0; i < tipCount + 1; i++) {
-				addFace(new int[]{plusEdge[i], plusEdge[i + 1], minusEdge[i + 1], minusEdge[i]},
-						new int[]{0, 1, 2, 0, 2, 3}, region);
+				addPolygon(new int[]{plusEdge[i], plusEdge[i + 1], minusEdge[i + 1], minusEdge[i]}, region);
 			}
 		}
 
-		/** A fin outline point on the side at the given offset from the fin's middle plane */
-		private static double[] finVertex(Fin fin, double[] point, double offset) {
-			double radial = fin.radius + point[1];
+		/** A point of the fin's plane (x, radial) on the side at the given offset from the fin's middle plane */
+		private static double[] finVertex(Fin fin, double x, double radial, double offset) {
 			double cos = Math.cos(fin.angle);
 			double sin = Math.sin(fin.angle);
-			return new double[]{fin.xRef + point[0], radial * cos - offset * sin, radial * sin + offset * cos};
+			return new double[]{x, radial * cos - offset * sin, radial * sin + offset * cos};
 		}
 
-		private void addFace(int[] loop, int[] triangles, String region) {
+		/**
+		 * Adds a rail button: a solid of revolution about the radial line through its center, standing on the body,
+		 * and the patch of body between the rectangular hole and the button's base.
+		 */
+		private void addButtonFaces(Button button, int[] hole) {
+			final int start = hole[0];
+			final int end = hole[1];
+			final int minusIndex = hole[2];
+			final int plusIndex = hole[3];
+			final String region = button.component.getName();
+			final double radius = button.radius;
+			final double cos = Math.cos(button.angle);
+			final double sin = Math.sin(button.angle);
+			final int divisions = detail.getButtonDivisions();
+
+			// The boundary of the hole: along its fore end, its plus side, its aft end and its minus side
+			List<Integer> outer = new ArrayList<>();
+			for (int j = minusIndex; j != plusIndex; j = (j + 1) % angles.length) {
+				outer.add(ringVertex(start, j));
+			}
+			for (int p = start; p < end; p++) {
+				outer.add(ringVertex(p, plusIndex));
+			}
+			for (int j = plusIndex; j != minusIndex; j = (j - 1 + angles.length) % angles.length) {
+				outer.add(ringVertex(end, j));
+			}
+			for (int p = end; p > start; p--) {
+				outer.add(ringVertex(p, minusIndex));
+			}
+
+			// The rings of the button from its base on the body to its top; each is (radius, height above the axis)
+			RailButton rb = button.component;
+			final double outerRadius = rb.getOuterDiameter() / 2;
+			final double innerRadius = Math.min(rb.getInnerDiameter(), rb.getOuterDiameter()) / 2;
+			List<double[]> rings = new ArrayList<>();
+			double height = radius;
+			if (rb.getBaseHeight() > EPS) {
+				height += rb.getBaseHeight();
+				rings.add(new double[]{outerRadius, height});
+				if (innerRadius < outerRadius - EPS) {
+					rings.add(new double[]{innerRadius, height});
+				}
+			}
+			if (rb.getInnerHeight() > EPS) {
+				height += rb.getInnerHeight();
+				rings.add(new double[]{innerRadius, height});
+			}
+			if (rb.getFlangeHeight() > EPS) {
+				if (Math.abs(rings.isEmpty() ? button.baseRadius - outerRadius
+						: rings.get(rings.size() - 1)[0] - outerRadius) > EPS) {
+					rings.add(new double[]{outerRadius, height});
+				}
+				height += rb.getFlangeHeight();
+				rings.add(new double[]{outerRadius, height});
+			}
+			if (rings.isEmpty()) {
+				height = radius + rb.getTotalHeight();
+				rings.add(new double[]{button.baseRadius, height});
+			}
+
+			// Around the button axis, so that the rings go counter-clockwise seen from outside
+			int[][] ringIndices = new int[rings.size() + 1][divisions];
+			double[] footU = new double[divisions];
+			double[] footV = new double[divisions];
+			for (int k = 0; k < divisions; k++) {
+				double alpha = 2 * Math.PI * k / divisions;
+				double tangential = button.baseRadius * Math.cos(alpha);
+				double axial = button.baseRadius * Math.sin(alpha);
+				double up = Math.sqrt(radius * radius - tangential * tangential);
+				ringIndices[0][k] = mesh.vertices.size();
+				mesh.vertices.add(buttonVertex(button.xCenter + axial, up, tangential, cos, sin));
+				footU[k] = axial;
+				footV[k] = radius * Math.asin(tangential / radius);
+				for (int r = 0; r < rings.size(); r++) {
+					double[] ring = rings.get(r);
+					ringIndices[r + 1][k] = mesh.vertices.size();
+					mesh.vertices.add(buttonVertex(button.xCenter + ring[0] * Math.sin(alpha), ring[1],
+							ring[0] * Math.cos(alpha), cos, sin));
+				}
+			}
+			for (int r = 0; r < rings.size(); r++) {
+				for (int k = 0; k < divisions; k++) {
+					int next = (k + 1) % divisions;
+					addPolygon(new int[]{ringIndices[r][k], ringIndices[r][next], ringIndices[r + 1][next],
+							ringIndices[r + 1][k]}, region);
+				}
+			}
+			int[] top = ringIndices[rings.size()];
+			int[] fan = new int[3 * (divisions - 2)];
+			for (int k = 1; k < divisions - 1; k++) {
+				fan[3 * (k - 1)] = top[0];
+				fan[3 * (k - 1) + 1] = top[k];
+				fan[3 * (k - 1) + 2] = top[k + 1];
+			}
+			mesh.faces.add(new Face(top.clone(), fan, region));
+
+			// The patch: zip the hole boundary and the base together by their angle around the button center
+			double[] outerAngle = new double[outer.size()];
+			for (int i = 0; i < outer.size(); i++) {
+				double[] p = mesh.vertices.get(outer.get(i));
+				double u = p[0] - button.xCenter;
+				double angle = Math.atan2(p[2], p[1]) - button.angle;
+				angle = Math.atan2(Math.sin(angle), Math.cos(angle));
+				outerAngle[i] = Math.atan2(radius * angle, u);
+			}
+			double[] footAngle = new double[divisions];
+			for (int k = 0; k < divisions; k++) {
+				footAngle[k] = Math.atan2(footV[k], footU[k]);
+			}
+			zip(outer, outerAngle, ringIndices[0], footAngle, region, button);
+		}
+
+		/** A point at the given axial position, height along the button axis and offset across it */
+		private static double[] buttonVertex(double x, double up, double across, double cos, double sin) {
+			return new double[]{x, up * cos - across * sin, up * sin + across * cos};
+		}
+
+		/**
+		 * Joins two closed loops around a common center with triangles, sweeping around the center from the first
+		 * outer vertex and advancing along whichever loop comes next. Each triangle is oriented to face away from the
+		 * rocket axis.
+		 */
+		private void zip(List<Integer> outer, double[] outerAngle, int[] inner, double[] innerAngle, String region,
+						 Button button) {
+			// Angles from the first outer vertex, so both loops are swept from the same place
+			final double start = outerAngle[byAngle(outerAngle)[0]];
+			double[] outerSweep = new double[outerAngle.length];
+			for (int i = 0; i < outerAngle.length; i++) {
+				outerSweep[i] = sweep(outerAngle[i], start);
+			}
+			double[] innerSweep = new double[innerAngle.length];
+			for (int k = 0; k < innerAngle.length; k++) {
+				innerSweep[k] = sweep(innerAngle[k], start);
+			}
+			int[] outerOrder = byAngle(outerSweep);
+			int[] innerOrder = byAngle(innerSweep);
+			int n = outerOrder.length;
+			int m = innerOrder.length;
+			int i = 0;
+			int k = 0;
+			while (i < n || k < m) {
+				int o0 = outer.get(outerOrder[i % n]);
+				int i0 = inner[innerOrder[k % m]];
+				double nextOuter = i < n ? outerSweep[outerOrder[(i + 1) % n]] + (i + 1 >= n ? 2 * Math.PI : 0)
+						: Double.MAX_VALUE;
+				double nextInner = k < m ? innerSweep[innerOrder[(k + 1) % m]] + (k + 1 >= m ? 2 * Math.PI : 0)
+						: Double.MAX_VALUE;
+				if (nextOuter <= nextInner) {
+					addOutward(o0, outer.get(outerOrder[(i + 1) % n]), i0, region, button);
+					i++;
+				} else {
+					addOutward(o0, inner[innerOrder[(k + 1) % m]], i0, region, button);
+					k++;
+				}
+			}
+		}
+
+		/** The angle measured counter-clockwise from the start, from 0 up to a full turn */
+		private static double sweep(double angle, double start) {
+			double a = (angle - start) % (2 * Math.PI);
+			return a < 0 ? a + 2 * Math.PI : a;
+		}
+
+		private static int[] byAngle(double[] angles) {
+			Integer[] order = new Integer[angles.length];
+			for (int i = 0; i < order.length; i++) {
+				order[i] = i;
+			}
+			Arrays.sort(order, (a, b) -> Double.compare(angles[a], angles[b]));
+			int[] result = new int[order.length];
+			for (int i = 0; i < order.length; i++) {
+				result[i] = order[i];
+			}
+			return result;
+		}
+
+		/** Adds a triangle of a button patch, facing away from the rocket axis */
+		private void addOutward(int a, int b, int c, String region, Button button) {
+			double[] pa = mesh.vertices.get(a);
+			double[] pb = mesh.vertices.get(b);
+			double[] pc = mesh.vertices.get(c);
+			double nx = (pb[1] - pa[1]) * (pc[2] - pa[2]) - (pb[2] - pa[2]) * (pc[1] - pa[1]);
+			double ny = (pb[2] - pa[2]) * (pc[0] - pa[0]) - (pb[0] - pa[0]) * (pc[2] - pa[2]);
+			double nz = (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]);
+			double outward = ny * Math.cos(button.angle) + nz * Math.sin(button.angle);
+			addPolygon(outward >= 0 ? new int[]{a, b, c} : new int[]{a, c, b}, region);
+		}
+
+		/** Adds a convex planar polygon, split into triangles from its first vertex */
+		private void addPolygon(int[] loop, String region) {
+			int[] triangles = new int[3 * (loop.length - 2)];
+			for (int i = 1; i < loop.length - 1; i++) {
+				triangles[3 * (i - 1)] = loop[0];
+				triangles[3 * (i - 1) + 1] = loop[i];
+				triangles[3 * (i - 1) + 2] = loop[i + 1];
+			}
 			mesh.faces.add(new Face(loop, triangles, region));
 		}
 	}

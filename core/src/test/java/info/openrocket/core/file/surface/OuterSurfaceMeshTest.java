@@ -23,7 +23,9 @@ import info.openrocket.core.logging.WarningSet;
 import info.openrocket.core.rocketcomponent.AxialStage;
 import info.openrocket.core.rocketcomponent.BodyTube;
 import info.openrocket.core.rocketcomponent.FreeformFinSet;
+import info.openrocket.core.rocketcomponent.InnerTube;
 import info.openrocket.core.rocketcomponent.NoseCone;
+import info.openrocket.core.rocketcomponent.RailButton;
 import info.openrocket.core.rocketcomponent.Rocket;
 import info.openrocket.core.rocketcomponent.Transition;
 import info.openrocket.core.rocketcomponent.TrapezoidFinSet;
@@ -35,8 +37,8 @@ import info.openrocket.core.util.TestRockets;
 public class OuterSurfaceMeshTest extends BaseTestCase {
 
 	/** Area factor of the polygon that stands for a circle */
-	private static final double POLYGON = OuterSurfaceMesh.ANGULAR_DIVISIONS
-			* Math.sin(2 * Math.PI / OuterSurfaceMesh.ANGULAR_DIVISIONS) / (2 * Math.PI);
+	private static final int DIVISIONS = OuterSurfaceMesh.Detail.NORMAL.getAngularDivisions();
+	private static final double POLYGON = DIVISIONS * Math.sin(2 * Math.PI / DIVISIONS) / (2 * Math.PI);
 
 	@Test
 	public void cylinderIsClosedWithItsVolume() {
@@ -264,6 +266,99 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 	}
 
 	@Test
+	public void railButtonsStandOnTheBody() {
+		Rocket rocket = bodyOnly();
+		BodyTube tube = (BodyTube) rocket.getStage(0).getChild(0);
+		double bodyVolume = volume(OuterSurfaceMesh.build(rocket.getSelectedConfiguration(), new WarningSet()));
+		// 10 mm base and flange, 8 mm standoff, 2 + 4 + 2 mm high, two buttons
+		RailButton buttons = new RailButton(0.010, 0.008, 0.008, 0.002, 0.002);
+		buttons.setInstanceCount(2);
+		buttons.setInstanceSeparation(0.1);
+		buttons.setAngleOffset(0.7);
+		tube.addChild(buttons);
+
+		WarningSet warnings = new WarningSet();
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(), warnings);
+
+		assertClosed(mesh);
+		assertTrue(warnings.isEmpty(), warnings.toString());
+		// Each button adds its cylinders, plus the sliver of its base below the top of the curved body
+		double cylinders = Math.PI * (0.005 * 0.005 * 0.004 + 0.004 * 0.004 * 0.004);
+		double added = volume(mesh) - bodyVolume;
+		assertEquals(2 * cylinders, added, 0.05 * 2 * cylinders);
+		assertEquals(2, countRegions(mesh, buttons.getName()));
+	}
+
+	@Test
+	public void railButtonsCanBeLeftOut() {
+		Rocket rocket = bodyOnly();
+		((BodyTube) rocket.getStage(0).getChild(0)).addChild(new RailButton());
+		double bodyVolume = volume(OuterSurfaceMesh.build(bodyOnly().getSelectedConfiguration(), new WarningSet()));
+
+		WarningSet warnings = new WarningSet();
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(),
+				new OuterSurfaceMesh.Options(OuterSurfaceMesh.Detail.NORMAL, false), warnings);
+
+		assertTrue(warnings.isEmpty(), warnings.toString());
+		assertEquals(bodyVolume, volume(mesh), 1e-12);
+	}
+
+	@Test
+	public void motorTubeStickingOutIsIncluded() {
+		Rocket rocket = bodyOnly();
+		BodyTube tube = (BodyTube) rocket.getStage(0).getChild(0);
+		double bodyVolume = volume(OuterSurfaceMesh.build(rocket.getSelectedConfiguration(), new WarningSet()));
+		InnerTube motorTube = new InnerTube();
+		motorTube.setOuterRadius(0.012);
+		motorTube.setLength(0.1);
+		motorTube.setAxialMethod(AxialMethod.BOTTOM);
+		motorTube.setAxialOffset(0.03);
+		tube.addChild(motorTube);
+
+		OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(), new WarningSet());
+
+		assertClosed(mesh);
+		assertEquals(bodyVolume + Math.PI * 0.012 * 0.012 * 0.03 * POLYGON, volume(mesh), 1e-10);
+	}
+
+	@Test
+	public void finTrianglesFollowTheDetail() {
+		int previous = 0;
+		for (OuterSurfaceMesh.Detail detail : OuterSurfaceMesh.Detail.values()) {
+			Rocket rocket = bodyOnly();
+			TrapezoidFinSet fins = new TrapezoidFinSet(3, 0.08, 0.04, 0.03, 0.05);
+			fins.setName("fins");
+			((BodyTube) rocket.getStage(0).getChild(0)).addChild(fins);
+			OuterSurfaceMesh mesh = OuterSurfaceMesh.build(rocket.getSelectedConfiguration(),
+					new OuterSurfaceMesh.Options(detail, true), new WarningSet());
+			assertClosed(mesh);
+
+			// No fin triangle is much longer than the body faces along the rocket
+			double spacing = 2 * Math.PI * 0.02 / detail.getAngularDivisions();
+			int count = 0;
+			for (OuterSurfaceMesh.Face face : mesh.getFaces()) {
+				if (!face.region().equals("fins")) {
+					continue;
+				}
+				int[] t = face.triangles();
+				for (int i = 0; i < t.length; i += 3) {
+					count++;
+					for (int k = 0; k < 3; k++) {
+						double[] a = mesh.getVertices().get(t[i + k]);
+						double[] b = mesh.getVertices().get(t[i + (k + 1) % 3]);
+						double length = Math.hypot(Math.hypot(a[0] - b[0], a[1] - b[1]), a[2] - b[2]);
+						// Faces across the fin thickness have edges and diagonals as long as the fin is thick
+						assertTrue(length <= 1.01 * Math.hypot(detail.getAxialAspect() * spacing, fins.getThickness()),
+								detail + " edge " + length);
+					}
+				}
+			}
+			assertTrue(count > previous, detail + " has more fin triangles");
+			previous = count;
+		}
+	}
+
+	@Test
 	public void cantedFinsAreExportedWithoutCant() {
 		Rocket rocket = bodyOnly();
 		BodyTube tube = (BodyTube) rocket.getStage(0).getChild(0);
@@ -303,7 +398,7 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 		// An L shape with collinear points along the bottom
 		double[] u = {0, 1, 2, 3, 3, 1, 1, 0};
 		double[] v = {0, 0, 0, 0, 1, 1, 3, 3};
-		int[] t = OuterSurfaceMesh.triangulate(u, v);
+		int[] t = SurfaceTriangulator.triangulate(u, v);
 
 		assertEquals(3 * (u.length - 2), t.length);
 		double area = 0;
@@ -386,11 +481,13 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 		for (OuterSurfaceMesh.Face face : mesh.getFaces()) {
 			int[] t = face.triangles();
 			for (int i = 0; i < t.length; i += 3) {
-				int[] v = {face.loop()[t[i]], face.loop()[t[i + 1]], face.loop()[t[i + 2]]};
+				int[] v = {t[i], t[i + 1], t[i + 2]};
 				assertTrue(area(mesh, v) > 1e-14, "degenerate triangle in " + face.region());
 				for (int k = 0; k < 3; k++) {
 					long edge = ((long) v[k] << 32) | v[(k + 1) % 3];
-					assertEquals(null, edges.put(edge, 1), "edge used twice in one direction in " + face.region());
+					assertEquals(null, edges.put(edge, 1), "edge used twice in one direction in " + face.region()
+							+ " from " + Arrays.toString(mesh.getVertices().get(v[k]))
+							+ " to " + Arrays.toString(mesh.getVertices().get(v[(k + 1) % 3])));
 				}
 			}
 		}
@@ -418,9 +515,9 @@ public class OuterSurfaceMeshTest extends BaseTestCase {
 		for (OuterSurfaceMesh.Face face : mesh.getFaces()) {
 			int[] t = face.triangles();
 			for (int i = 0; i < t.length; i += 3) {
-				double[] a = mesh.getVertices().get(face.loop()[t[i]]);
-				double[] b = mesh.getVertices().get(face.loop()[t[i + 1]]);
-				double[] c = mesh.getVertices().get(face.loop()[t[i + 2]]);
+				double[] a = mesh.getVertices().get(t[i]);
+				double[] b = mesh.getVertices().get(t[i + 1]);
+				double[] c = mesh.getVertices().get(t[i + 2]);
 				volume += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
 						+ a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
 			}

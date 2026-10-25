@@ -78,13 +78,13 @@ public final class OuterSurfaceWriter {
 			}
 			w.write("solid " + solid + "\n");
 			for (OuterSurfaceMesh.Face face : region.getValue()) {
-				double[] n = normal(mesh, face.loop());
 				int[] t = face.triangles();
 				for (int i = 0; i < t.length; i += 3) {
+					double[] n = normal(mesh, new int[]{t[i], t[i + 1], t[i + 2]});
 					w.write("  facet normal " + number(n[0]) + " " + number(n[1]) + " " + number(n[2]) + "\n");
 					w.write("    outer loop\n");
 					for (int k = 0; k < 3; k++) {
-						double[] p = mesh.getVertices().get(face.loop()[t[i + k]]);
+						double[] p = mesh.getVertices().get(t[i + k]);
 						w.write("      vertex " + number(p[0]) + " " + number(p[1]) + " " + number(p[2]) + "\n");
 					}
 					w.write("    endloop\n");
@@ -137,8 +137,7 @@ public final class OuterSurfaceWriter {
 		for (OuterSurfaceMesh.Face face : mesh.getFaces()) {
 			int[] t = face.triangles();
 			for (int i = 0; i < t.length; i += 3) {
-				w.write("          <triangle v1=\"" + face.loop()[t[i]] + "\" v2=\"" + face.loop()[t[i + 1]]
-						+ "\" v3=\"" + face.loop()[t[i + 2]] + "\"/>\n");
+				w.write("          <triangle v1=\"" + t[i] + "\" v2=\"" + t[i + 1] + "\" v3=\"" + t[i + 2] + "\"/>\n");
 			}
 		}
 		w.write("        </triangles>\n"
